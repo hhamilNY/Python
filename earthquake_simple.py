@@ -147,38 +147,51 @@ def main():
     st.markdown("---")
     
     # Select View dropdown
-    st.markdown("<h3 style='text-align: center;'>📡 Select View</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center;'>📡 Select Data Source</h3>", unsafe_allow_html=True)
     
-    feed_options = {
-        "🕐 Past Hour": "all_hour",
-        "� Past Day": "all_day", 
-        "🌍 Past Week": "all_week",
-        "� Past Month": "all_month",
-        "🌋 Major Quakes (4.5+ Week)": "4.5_week",
-        "⚠️ Significant Events (Month)": "significant_month",
-        "🔍 Magnitude 2.5+ (Week)": "2.5_week"
-    }
+    col1, col2 = st.columns(2)
     
-    selected_view = st.selectbox(
-        "Choose earthquake data timeframe:",
-        options=list(feed_options.keys()),
-        index=0,
-        help="Select the time period and magnitude range for earthquake data"
-    )
+    with col1:
+        if st.button("🕐 Past Hour"):
+            st.session_state.feed_type = "all_hour"
+        if st.button("📅 Past Day"):
+            st.session_state.feed_type = "all_day"
+        if st.button("🌍 Past Week"):
+            st.session_state.feed_type = "all_week"
     
-    # Get feed type from selection
-    feed_type = feed_options[selected_view]
+    with col2:
+        if st.button("📆 Past Month"):
+            st.session_state.feed_type = "all_month"
+        if st.button("🌋 Major Quakes (4.5+)"):
+            st.session_state.feed_type = "4.5_week"
+        if st.button("⚠️ Significant Events"):
+            st.session_state.feed_type = "significant_month"
     
-    # Magnitude filter
-    st.markdown("<h3 style='text-align: center;'>🎛️ Filters</h3>", unsafe_allow_html=True)
-    min_magnitude = st.slider(
-        "Minimum Magnitude",
-        min_value=0.0,
-        max_value=7.0,
-        value=0.0,
-        step=0.1,
-        help="Filter earthquakes by minimum magnitude"
-    )
+    # Initialize session state
+    if 'feed_type' not in st.session_state:
+        st.session_state.feed_type = "all_hour"
+    
+    # Get feed type from session state
+    feed_type = st.session_state.feed_type
+    
+    # Select View options
+    st.markdown("<h3 style='text-align: center;'>📊 Select View</h3>", unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        min_magnitude = st.slider(
+            "Minimum Magnitude",
+            min_value=0.0,
+            max_value=7.0,
+            value=0.0,
+            step=0.1,
+            help="Filter earthquakes by minimum magnitude"
+        )
+    
+    with col2:
+        show_recent = st.checkbox("Show Recent List", value=True, help="Display list of recent earthquakes")
+        show_map = st.checkbox("Show Map", value=True, help="Display earthquake map")
     
     # Fetch and display data
     with st.spinner("📡 Loading earthquake data..."):
@@ -190,14 +203,27 @@ def main():
     
     if earthquakes:
         # Show current selection info
-        st.info(f"📊 Showing: **{selected_view}** | Minimum Magnitude: **M {min_magnitude}**")
+        current_selection = {
+            "all_hour": "🕐 Past Hour",
+            "all_day": "📅 Past Day", 
+            "all_week": "🌍 Past Week",
+            "all_month": "📆 Past Month",
+            "4.5_week": "🌋 Major Quakes (4.5+)",
+            "significant_month": "⚠️ Significant Events"
+        }
+        
+        selected_name = current_selection.get(feed_type, "Unknown")
+        st.info(f"📊 Showing: **{selected_name}** | Minimum Magnitude: **M {min_magnitude}**")
         st.success(f"✅ Found {len(earthquakes)} earthquakes")
         
         show_stats(earthquakes)
-        create_map(earthquakes)
+        
+        if show_map:
+            create_map(earthquakes)
         
         # Show recent earthquakes
-        st.markdown("<h3 style='text-align: center;'>📋 Recent Earthquakes</h3>", unsafe_allow_html=True)
+        if show_recent:
+            st.markdown("<h3 style='text-align: center;'>📋 Recent Earthquakes</h3>", unsafe_allow_html=True)
         valid_earthquakes = [eq for eq in earthquakes if eq['magnitude'] > 0]
         
         for eq in sorted(valid_earthquakes, key=lambda x: x['magnitude'], reverse=True)[:5]:
