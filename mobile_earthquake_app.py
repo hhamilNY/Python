@@ -257,7 +257,6 @@ def get_visit_stats():
         
         # Fallback to log parsing
         try:
-            import os
             log_file = os.path.join("logs", "earthquake_app.log")
             
             if not os.path.exists(log_file):
@@ -327,7 +326,6 @@ def get_detailed_analytics():
         
         # Still get errors from logs since they're not stored in metrics
         try:
-            import os
             log_file = os.path.join("logs", "earthquake_app.log")
             if os.path.exists(log_file):
                 with open(log_file, 'r', encoding='utf-8') as f:
@@ -344,7 +342,6 @@ def get_detailed_analytics():
         
         # Fallback to original log parsing
         try:
-            import os
             from collections import defaultdict
             
             log_file = os.path.join("logs", "earthquake_app.log")
@@ -750,8 +747,6 @@ for the USGS Earthquake Monitor application.
         
         # Show current storage info
         try:
-            import os
-            
             st.write("**📁 Enhanced Storage Usage:**")
             
             # Basic metrics file
