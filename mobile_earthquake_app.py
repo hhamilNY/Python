@@ -15,9 +15,11 @@ import logging
 import logging.handlers
 import time
 import os
+import uuid
 from functools import wraps
 from visitor_metrics import get_metrics
 from app_config import get_app_config
+from user_session_manager import get_session_manager
 
 
 # Configure logging with rotation
@@ -115,31 +117,92 @@ def log_user_action(action, details=None):
     # Record in persistent metrics
     metrics = get_metrics()
     metrics.record_user_action(action, details)
+    
+    # Record in enhanced session tracking
+    try:
+        session_manager = get_session_manager()
+        session_id = st.session_state.get('session_id')
+        if session_id:
+            action_details = f"{action}:{details}" if details else action
+            session_manager.update_session_activity(session_id, action_details)
+    except Exception as e:
+        logger.warning(f"SESSION_ACTION_ERROR | Failed to record action in session: {e}")
 
 def track_visitor():
     """
-    Track unique visitors and page views for analytics.
+    Enhanced visitor tracking with location and security features.
     
-    Creates a persistent visitor ID across browser sessions and logs new
-    visitors with their user agent information. Records both new visitors
-    and page views in persistent metrics storage.
+    Creates a persistent visitor ID across browser sessions and comprehensive
+    session tracking including location data, device fingerprinting, and security
+    monitoring. Records data in both basic metrics and enhanced session storage.
     
     Returns:
         str: Unique visitor ID (12-character UUID)
     """
+    session_manager = get_session_manager()
+    
     # Get or create visitor ID (persists across browser sessions)
     visitor_id = st.session_state.get('visitor_id')
     if not visitor_id:
-        import uuid
         visitor_id = str(uuid.uuid4())[:12]  # Longer ID for visitors
         st.session_state.visitor_id = visitor_id
-        
-        # Log new visitor
-        logger.info(f"NEW_VISITOR | ID: {visitor_id} | Session: {st.session_state.get('session_id', 'unknown')}")
-        
-        # Record in persistent metrics
+    
+    # Get session ID or create enhanced session
+    session_id = st.session_state.get('session_id')
+    if not session_id:
+        # Create enhanced session with location tracking
+        try:
+            # Get request information for location tracking
+            request_headers = {}
+            
+            # Try to get headers from Streamlit context
+            try:
+                ctx = st.runtime.scriptrunner.get_script_run_ctx()
+                if ctx and hasattr(ctx, '_session_info'):
+                    session_info = ctx._session_info
+                    if hasattr(session_info, 'ws') and hasattr(session_info.ws, 'request'):
+                        request_headers = dict(session_info.ws.request.headers)
+            except:
+                pass
+            
+            # Get user agent from headers or browser
+            user_agent = request_headers.get('User-Agent', 'Unknown Browser')
+            
+            session_id, session_data = session_manager.create_session(
+                visitor_id=visitor_id,
+                request_headers=request_headers,
+                user_agent=user_agent
+            )
+            st.session_state.session_id = session_id
+            
+            # Log enhanced session info
+            location = session_data['location']
+            logger.info(f"NEW_SESSION | ID: {session_id} | Visitor: {visitor_id} | "
+                       f"Location: {location['city']}, {location['country']} | "
+                       f"IP: {session_data.get('ip_address', 'unknown')}")
+            
+        except Exception as e:
+            # Fallback to basic session if enhanced tracking fails
+            session_id = str(uuid.uuid4())[:8]
+            st.session_state.session_id = session_id
+            logger.warning(f"SESSION_FALLBACK | Enhanced tracking failed: {e} | Using basic session: {session_id}")
+    
+    # Update session activity
+    try:
+        session_manager.update_session_activity(session_id, 'page_view')
+    except Exception as e:
+        logger.warning(f"SESSION_UPDATE_ERROR | Failed to update session activity: {e}")
+    
+    # Record in existing metrics system (backwards compatibility)
+    try:
         metrics = get_metrics()
         metrics.record_new_visitor(visitor_id)
+        metrics.record_page_view(visitor_id)
+        metrics.record_session(session_id)
+    except Exception as e:
+        logger.error(f"METRICS_ERROR | Failed to record visitor metrics: {e}")
+    
+    return visitor_id
         
         # Try to get basic browser info (if available)
         user_agent = ""
@@ -720,6 +783,100 @@ for the USGS Earthquake Monitor application.
         st.write("**📄 Configuration File:**")
         st.code(f"Location: {app_config.config_file}")
         st.write("This file persists all your retention and app settings.")
+
+    # Enhanced Session Analytics
+    with st.sidebar.expander("🌍 Enhanced Session Analytics", expanded=False):
+        try:
+            session_manager = get_session_manager()
+            analytics = session_manager.get_analytics_summary()
+            security = session_manager.get_security_summary()
+            
+            st.write("**🌐 Session Overview:**")
+            
+            # Key metrics in columns
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("🔗 Total Sessions", analytics['total_sessions'])
+                st.metric("⚡ Active Sessions", analytics['active_sessions'])
+                st.metric("📍 Unique Locations", analytics['unique_locations'])
+            
+            with col2:
+                st.metric("🔑 Total Logins", analytics['total_logins'])
+                st.metric("📱 Unique Devices", analytics['unique_devices'])
+                st.metric("⏱️ Avg Duration (min)", analytics['average_session_duration_minutes'])
+            
+            # Security summary
+            if security['total_security_events'] > 0:
+                st.write("**🔒 Security Summary:**")
+                st.metric("⚠️ Security Events", security['total_security_events'])
+                if security['recent_events_30_days'] > 0:
+                    st.warning(f"🚨 {security['recent_events_30_days']} events in last 30 days")
+            
+            # Geographic distribution
+            st.write("**🗺️ Geographic Distribution:**")
+            st.write(f"📊 Users from {analytics['unique_locations']} different locations")
+            
+            # Show recent security events if any
+            if security['recent_events']:
+                with st.expander("🔍 Recent Security Events", expanded=False):
+                    for event in security['recent_events'][-5:]:  # Last 5 events
+                        event_time = datetime.fromisoformat(event['timestamp']).strftime('%m/%d %H:%M')
+                        st.write(f"⚠️ **{event['event_type']}** - {event_time}")
+                        if 'new_location' in event.get('details', {}):
+                            location = event['details']['new_location']
+                            st.write(f"   📍 {location.get('city', 'Unknown')}, {location.get('country', 'Unknown')}")
+            
+            # Download session data
+            st.write("**📥 Data Export:**")
+            
+            # Export session analytics
+            try:
+                session_export = session_manager.export_session_data()
+                if session_export and os.path.exists(session_export):
+                    with open(session_export, 'r', encoding='utf-8') as f:
+                        session_data = f.read()
+                    
+                    st.download_button(
+                        label="📊 Download Session Analytics",
+                        data=session_data,
+                        file_name=f"session_analytics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                        mime="application/json",
+                        help="Download comprehensive session data including locations and security events"
+                    )
+                    
+                    # Remove temporary export file
+                    try:
+                        os.remove(session_export)
+                    except:
+                        pass
+                        
+            except Exception as e:
+                st.write(f"⚠️ Export not available: {e}")
+            
+            # Session cleanup controls
+            st.write("**🧹 Session Management:**")
+            
+            current_visitor_id = st.session_state.get('visitor_id', 'Unknown')
+            current_session_id = st.session_state.get('session_id', 'Unknown')
+            
+            st.write(f"🆔 Current Visitor: `{current_visitor_id}`")
+            st.write(f"🔗 Current Session: `{current_session_id}`")
+            
+            # Manual session cleanup
+            if st.button("🧹 Cleanup Old Sessions", help="Remove sessions older than configured retention period"):
+                try:
+                    app_config = get_app_config()
+                    retention_days = app_config.get("privacy_settings.session_retention_days", 90)
+                    session_manager.cleanup_old_sessions(days_to_keep=retention_days)
+                    st.success(f"✅ Cleaned sessions older than {retention_days} days!")
+                    logger.info(f"ADMIN_ACTION | Manual session cleanup: {retention_days} days")
+                except Exception as e:
+                    st.error(f"❌ Session cleanup failed: {e}")
+                    logger.error(f"ADMIN_ACTION | Session cleanup failed: {e}")
+            
+        except Exception as e:
+            st.write(f"❌ Enhanced analytics unavailable: {e}")
+            st.write("📝 Note: Enhanced session tracking requires user_session_manager.py")
 
 
 # Configure Streamlit page

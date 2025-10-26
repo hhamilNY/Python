@@ -1,0 +1,56 @@
+import matplotlib.pyplot as plt
+import numpy as np
+# Create a simple plot
+x = np.array([1, 2, 3, 4, 5])
+y = np.array([2, 4, 6, 8, 10])
+
+plt.plot(x, y)
+plt.xlabel('X-axis')
+plt.ylabel('Y-axis')
+plt.title('Simple Line Plot')
+plt.grid(True)
+plt.show()
+
+x1 = np.array([2023, 2024, 2025, 2026, 2027])
+y1 = np.array([15, 25, 30, 20, 28])
+y2 = np.array([17, 23, 38, 25, 18])
+y3 = np.array([5, 15, 10, 35, 45])
+
+line_style = dict(marker="o",
+         markersize=20, #ms
+         markerfacecolor="cyan", # Marker color #1cd3fc can be used also #mfc
+         markeredgecolor="blue", # Marker edge color #0000ff #mec  
+         linestyle="-", # "solid" can be used also
+         linewidth=2, # lw
+         color="r" )  
+
+line_style2 = dict(marker="o",
+         markersize=20, #ms
+         markerfacecolor="cyan", # Marker color #1cd3fc can be used also #mfc
+         markeredgecolor="blue", # Marker edge color #0000ff #mec  
+         linestyle="-", # "solid" can be used also
+         linewidth=2) # lw)  
+
+plt.plot(x1, y1, marker="o",
+         markersize=20, #ms
+         markerfacecolor="cyan", # Marker color #1cd3fc can be used also #mfc
+         markeredgecolor="blue", # Marker edge color #0000ff #mec  
+         linestyle="-", # "solid" can be used also
+         linewidth=2, # lw
+         color="r", label="Line 2")  
+
+plt.plot(x1, y2, **line_style)
+
+plt.plot(x1, y3,  color="#1cfc45", **line_style2)
+
+plt.xlabel('Year', fontsize=14,
+           color= '#2dbefc',
+           family='Arial',
+           fontweight='bold')
+
+plt.ylabel('Students', fontsize=14,
+           color='blue',
+           family='Arial',
+           fontweight='bold')
+
+plt.show()

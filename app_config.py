@@ -37,8 +37,18 @@ class AppConfig:
                 "performance_logging_enabled": True,
                 "error_reporting_enabled": True
             },
+            "privacy_settings": {
+                "location_tracking_enabled": True,
+                "ip_logging_enabled": True,
+                "device_fingerprinting_enabled": True,
+                "security_monitoring_enabled": True,
+                "session_retention_days": 90,
+                "security_log_retention_days": 365,
+                "data_anonymization_enabled": False,
+                "consent_required": False
+            },
             "metadata": {
-                "config_version": "1.0",
+                "config_version": "1.1",
                 "created_date": datetime.now().isoformat(),
                 "last_updated": datetime.now().isoformat(),
                 "app_version": "1.0.0"
