@@ -408,6 +408,7 @@ def show_admin_dashboard():
     identifying issues.
     """
     st.sidebar.title("📊 Analytics Dashboard")
+    st.sidebar.info("🔍 **DEBUG:** Admin sidebar should be visible now!")
     
     # Exit admin mode button
     if st.sidebar.button("❌ Exit Admin Mode", help="Return to normal view"):
@@ -2028,8 +2029,14 @@ def main():
     view modes including overview, map, list, statistics, and regional analysis.
     All interactions are logged for analytics and debugging purposes.
     """
-    # Check for admin dashboard access via URL parameter and session state
-    show_admin = False
+    
+    try:
+        # Debug: Show that the app is starting
+        st.write("🔍 **DEBUG:** App is starting...")
+        st.write("🔍 **DEBUG:** Imports successful")
+        
+        # Check for admin dashboard access via URL parameter and session state
+        show_admin = False
     
     # First check session state
     if st.session_state.get('show_admin', False):
@@ -2062,13 +2069,21 @@ def main():
         # Debug: Show admin status for testing
         if show_admin:
             st.info("🔧 **Admin Mode Activated** - Analytics dashboard is shown in the sidebar")
+            st.warning("👀 **LOOK LEFT:** The sidebar should contain admin controls. If you don't see it, try:")
+            st.write("- **Desktop:** Look for a panel on the left side of your browser")
+            st.write("- **Mobile:** Look for a hamburger menu (≡) or sidebar toggle")
+            st.write("- **Browser:** Try refreshing the page or using a different browser")
             
     except Exception as e:
         show_admin = False
         logger.warning(f"ADMIN_ACCESS | URL parameter check failed: {e}")
     
+    st.write("🔍 **DEBUG:** About to track visitor...")
+    
     # Track visitor (must be called early)
     visitor_id = track_visitor()
+    
+    st.write(f"🔍 **DEBUG:** Visitor tracked: {visitor_id}")
     
     # Initialize session tracking
     if 'session_id' not in st.session_state:
@@ -2076,13 +2091,26 @@ def main():
         st.session_state.session_id = str(uuid.uuid4())[:8]
         logger.info(f"SESSION_START | New session: {st.session_state.session_id} | Visitor: {visitor_id}")
     
+    st.write("🔍 **DEBUG:** About to handle admin/sidebar...")
+    
+    # Simple sidebar test that should always be visible
+    st.sidebar.title("🧪 SIDEBAR TEST")
+    st.sidebar.error("🚨 If you see this, the sidebar is working!")
+    st.sidebar.success("✅ This message should be in the left sidebar panel")
+    
     # Show admin dashboard if requested
     if show_admin:
+        st.write("🔍 **DEBUG:** Admin mode detected, calling show_admin_dashboard()")
         show_admin_dashboard()
+        st.write("🔍 **DEBUG:** show_admin_dashboard() completed")
     else:
+        st.write("🔍 **DEBUG:** Regular mode, calling create_sidebar_controls()")
         # Create regular sidebar when not in admin mode
         create_sidebar_controls()
+        st.write("🔍 **DEBUG:** create_sidebar_controls() completed")
 
+    st.write("🔍 **DEBUG:** About to create mobile header...")
+    
     create_mobile_header()    # Initialize session state first
     if 'feed_type' not in st.session_state:
         st.session_state.feed_type = "all_hour"
@@ -2297,7 +2325,25 @@ def main():
         </small>
     </div>
     """, unsafe_allow_html=True)
+    
+    st.write("🔍 **DEBUG:** App completed successfully!")
+    
+    except Exception as e:
+        st.error(f"🚨 **Main Function Error:** {str(e)}")
+        st.write("**Error Details:**")
+        st.code(str(e))
+        import traceback
+        st.write("**Traceback:**")
+        st.code(traceback.format_exc())
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        st.error(f"🚨 **Application Error:** {str(e)}")
+        st.write("**Error Details:**")
+        st.code(str(e))
+        import traceback
+        st.write("**Traceback:**")
+        st.code(traceback.format_exc())
