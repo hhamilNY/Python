@@ -269,7 +269,7 @@ def show_advanced_stats(earthquakes, region="USA"):
     times = [eq.get('time', 0) for eq in valid_earthquakes]
     
     # Enhanced Statistics Dashboard
-    st.markdown("<h3 style='text-align: center; color: #2c3e50;'>📊 Advanced Statistics Dashboard</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; color: #2c3e50;'>📊 Real-Time Statistics Dashboard</h3>", unsafe_allow_html=True)
     
     # Key Metrics Row
     col1, col2, col3, col4, col5 = st.columns(5)
@@ -682,8 +682,8 @@ def main():
     
     feed_type = st.session_state.feed_type
     
-    # Advanced View Controls
-    st.markdown("<h3 style='text-align: center;'>🎛️ Advanced Controls</h3>", unsafe_allow_html=True)
+    # Real-Time View Controls
+    st.markdown("<h3 style='text-align: center;'>🎛️ Real-Time Controls</h3>", unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     
