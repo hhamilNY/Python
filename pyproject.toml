@@ -1,17 +1,64 @@
 [project]
-name = "object"
-version = "0.1.0"
-description = "Add your description here"
+name = "earthquake-monitor"
+version = "2.0.0"
+description = "Mobile-optimized earthquake monitoring app with modular architecture"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.9"
 dependencies = [
-    "cartopy>=0.25.0",
-    "matplotlib>=3.10.7",
-    "mypy>=1.18.2",
-    "numpy>=2.3.4",
-    "pandas>=2.3.3",
-    "plotly>=6.3.1",
-    "pyinstaller>=6.16.0",
-    "requests>=2.32.5",
-    "streamlit>=1.50.0",
+    # Core web framework
+    "streamlit>=1.28.0",
+    
+    # Data processing and analysis
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "requests>=2.28.0",
+    
+    # Visualization
+    "plotly>=5.15.0",
+    
+    # Development tools (optional)
+    "mypy>=1.0.0",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+]
+
+build = [
+    "pyinstaller>=5.0.0",
+]
+
+geospatial = [
+    "cartopy>=0.21.0",
+    "matplotlib>=3.6.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/hhamilNY/Python"
+Repository = "https://github.com/hhamilNY/Python"
+Documentation = "Documentation/"
+
+[project.scripts]
+earthquake-monitor = "mobile_earthquake_app_v2:main"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["earthquake_*", "user_session_manager", "app_config"]
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
