@@ -15,6 +15,113 @@ import os
 from pathlib import Path
 import logging
 
+# Configure logging
+log_dir = Path("logs")
+log_dir.mkdir(exist_ok=True)
+
+# Setup logging configuration
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_dir / "earthquake_monitor.log"),
+        logging.StreamHandler()
+    ]
+)
+
+# Create logger for this module
+logger = logging.getLogger("EarthquakeMonitor")
+
+# User metrics tracking
+def save_user_metrics(session_id, action, data=None):
+    """Save user metrics to JSON file"""
+    try:
+        metrics_file = log_dir / "user_metrics.json"
+        
+        # Load existing metrics
+        if metrics_file.exists():
+            with open(metrics_file, 'r') as f:
+                metrics = json.load(f)
+        else:
+            metrics = {"sessions": {}, "global_stats": {"total_sessions": 0, "total_actions": 0}}
+        
+        # Initialize session if new
+        if session_id not in metrics["sessions"]:
+            metrics["sessions"][session_id] = {
+                "session_start": datetime.now().isoformat(),
+                "page_views": 0,
+                "actions": [],
+                "regions_selected": [],
+                "feed_types_used": [],
+                "admin_access": False,
+                "total_actions": 0
+            }
+            metrics["global_stats"]["total_sessions"] += 1
+        
+        # Update session metrics
+        session_data = metrics["sessions"][session_id]
+        session_data["last_activity"] = datetime.now().isoformat()
+        session_data["total_actions"] += 1
+        metrics["global_stats"]["total_actions"] += 1
+        
+        # Record specific action
+        action_record = {
+            "timestamp": datetime.now().isoformat(),
+            "action": action,
+            "data": data
+        }
+        session_data["actions"].append(action_record)
+        
+        # Track specific metrics
+        if action == "page_view":
+            session_data["page_views"] += 1
+        elif action == "region_selected" and data:
+            if data not in session_data["regions_selected"]:
+                session_data["regions_selected"].append(data)
+        elif action == "feed_type_selected" and data:
+            if data not in session_data["feed_types_used"]:
+                session_data["feed_types_used"].append(data)
+        elif action == "admin_access":
+            session_data["admin_access"] = True
+        
+        # Save metrics
+        with open(metrics_file, 'w') as f:
+            json.dump(metrics, f, indent=2)
+            
+        logger.debug(f"User metrics saved: {action} for session {session_id[-8:]}")
+        
+    except Exception as e:
+        logger.error(f"Error saving user metrics: {e}")
+
+def get_user_metrics_summary():
+    """Get summary of user metrics for admin panel"""
+    try:
+        metrics_file = log_dir / "user_metrics.json"
+        if not metrics_file.exists():
+            return {"total_sessions": 0, "total_actions": 0, "active_sessions": 0}
+        
+        with open(metrics_file, 'r') as f:
+            metrics = json.load(f)
+        
+        # Calculate active sessions (activity in last hour)
+        active_sessions = 0
+        current_time = datetime.now()
+        
+        for session_id, session_data in metrics["sessions"].items():
+            if "last_activity" in session_data:
+                last_activity = datetime.fromisoformat(session_data["last_activity"])
+                if (current_time - last_activity).total_seconds() < 3600:  # 1 hour
+                    active_sessions += 1
+        
+        return {
+            "total_sessions": metrics["global_stats"]["total_sessions"],
+            "total_actions": metrics["global_stats"]["total_actions"],
+            "active_sessions": active_sessions
+        }
+    except Exception as e:
+        logger.error(f"Error getting user metrics summary: {e}")
+        return {"total_sessions": 0, "total_actions": 0, "active_sessions": 0}
+
 # Configure page
 st.set_page_config(
     page_title="🌍 Real-Time Earthquake Monitor", 
@@ -80,22 +187,31 @@ st.markdown("""
 # Session state initialization
 if 'session_id' not in st.session_state:
     st.session_state.session_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    logger.info(f"New session started: {st.session_state.session_id}")
+    save_user_metrics(st.session_state.session_id, "session_start")
 if 'page_views' not in st.session_state:
     st.session_state.page_views = 0
 if 'admin_mode' not in st.session_state:
     st.session_state.admin_mode = False
 
 st.session_state.page_views += 1
+logger.debug(f"Session {st.session_state.session_id[-8:]} - Page view #{st.session_state.page_views}")
+save_user_metrics(st.session_state.session_id, "page_view", st.session_state.page_views)
 
 @st.cache_data(ttl=300)
 def fetch_earthquake_data(feed_type="all_hour", region="usa"):
     """Fetch earthquake data from USGS with regional filtering"""
     url = f"https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/{feed_type}.geojson"
     
+    logger.info(f"Fetching earthquake data: feed_type={feed_type}, region={region}")
+    logger.debug(f"API URL: {url}")
+    
     try:
         response = requests.get(url, timeout=10)
         response.raise_for_status()
         data = response.json()
+        
+        logger.info(f"Successfully fetched data from USGS API - {len(data['features'])} total features")
         
         earthquakes = []
         for feature in data['features']:
@@ -154,21 +270,34 @@ def fetch_earthquake_data(feed_type="all_hour", region="usa"):
                     'url': props.get('url', '')
                 })
         
+        logger.info(f"Filtered {len(earthquakes)} earthquakes for region '{region}' from {len(data['features'])} total")
         return earthquakes
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error fetching earthquake data: {e}")
+        st.error(f"Error fetching data: {e}")
+        return []
     except Exception as e:
+        logger.error(f"Unexpected error fetching earthquake data: {e}")
         st.error(f"Error fetching data: {e}")
         return []
 
 def create_advanced_map(earthquakes, region="usa"):
     """Create enhanced earthquake map with comprehensive hover info"""
+    logger.info(f"Creating advanced map for region '{region}' with {len(earthquakes)} earthquakes")
+    
     if not earthquakes:
+        logger.warning(f"No earthquake data available for map in region '{region}'")
         st.warning("⚠️ No earthquake data available for map")
         return
     
     valid_earthquakes = [eq for eq in earthquakes if eq.get('magnitude', 0) > 0]
     if not valid_earthquakes:
+        logger.warning(f"No valid earthquake data for map in region '{region}' - all {len(earthquakes)} earthquakes have invalid magnitude")
         st.warning("⚠️ No valid earthquake data for map")
         return
+    
+    logger.debug(f"Processing {len(valid_earthquakes)} valid earthquakes for map visualization")
     
     df = pd.DataFrame(valid_earthquakes)
     
@@ -409,6 +538,7 @@ def create_regional_comparison_chart(feed_type, min_magnitude=0.0):
             })
         except Exception as e:
             # If there's an error with a region, add zero data
+            logger.error(f"Error fetching data for region {region_name} ({region_code}): {e}")
             regional_data.append({
                 'region': region_name,
                 'region_code': region_code,
@@ -562,6 +692,7 @@ def show_admin_panel():
     </div>
     """, unsafe_allow_html=True)
     
+    # Current session metrics
     col1, col2, col3 = st.columns(3)
     
     with col1:
@@ -574,6 +705,22 @@ def show_admin_panel():
         current_time = datetime.now().strftime("%H:%M:%S")
         st.metric("Current Time", current_time)
     
+    # Global user metrics
+    st.markdown("<h4 style='text-align: center;'>📊 Global User Metrics</h4>", unsafe_allow_html=True)
+    
+    metrics_summary = get_user_metrics_summary()
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("👥 Total Sessions", metrics_summary["total_sessions"])
+    
+    with col2:
+        st.metric("🎯 Total Actions", metrics_summary["total_actions"])
+    
+    with col3:
+        st.metric("🟢 Active Sessions", metrics_summary["active_sessions"])
+    
     # System status
     st.markdown("<h4 style='text-align: center;'>🖥️ System Status</h4>", unsafe_allow_html=True)
     
@@ -582,10 +729,13 @@ def show_admin_panel():
     with col1:
         st.success("✅ USGS API: Connected")
         st.success("✅ Streamlit: Running")
+        st.success("✅ User Metrics: Active")
     
     with col2:
         st.info("📡 Data Cache: 5 minutes")
         st.info("🌍 Regions: 8 available")
+        st.info("📝 Logs: earthquake_monitor.log")
+        st.info("📊 Metrics: user_metrics.json")
 
 def main():
     """Real-time earthquake monitoring application"""
@@ -650,8 +800,11 @@ def main():
     # Admin toggle
     if st.sidebar.button("🔧 Toggle Admin Mode"):
         st.session_state.admin_mode = not st.session_state.admin_mode
+        logger.info(f"Session {st.session_state.session_id[-8:]} - Admin mode {'enabled' if st.session_state.admin_mode else 'disabled'}")
+        save_user_metrics(st.session_state.session_id, "admin_access", st.session_state.admin_mode)
     
     if st.session_state.admin_mode:
+        logger.debug(f"Displaying admin panel for session {st.session_state.session_id[-8:]}")
         show_admin_panel()
         st.markdown("---")
     
@@ -663,18 +816,30 @@ def main():
     with col1:
         if st.button("🕐 Past Hour", key="hour"):
             st.session_state.feed_type = "all_hour"
+            logger.info(f"Session {st.session_state.session_id[-8:]} - Selected feed type: all_hour")
+            save_user_metrics(st.session_state.session_id, "feed_type_selected", "all_hour")
         if st.button("📅 Past Day", key="day"):
             st.session_state.feed_type = "all_day"
+            logger.info(f"Session {st.session_state.session_id[-8:]} - Selected feed type: all_day")
+            save_user_metrics(st.session_state.session_id, "feed_type_selected", "all_day")
         if st.button("🌍 Past Week", key="week"):
             st.session_state.feed_type = "all_week"
+            logger.info(f"Session {st.session_state.session_id[-8:]} - Selected feed type: all_week")
+            save_user_metrics(st.session_state.session_id, "feed_type_selected", "all_week")
     
     with col2:
         if st.button("📆 Past Month", key="month"):
             st.session_state.feed_type = "all_month"
+            logger.info(f"Session {st.session_state.session_id[-8:]} - Selected feed type: all_month")
+            save_user_metrics(st.session_state.session_id, "feed_type_selected", "all_month")
         if st.button("🌋 Major Quakes (4.5+)", key="major"):
             st.session_state.feed_type = "4.5_week"
+            logger.info(f"Session {st.session_state.session_id[-8:]} - Selected feed type: 4.5_week")
+            save_user_metrics(st.session_state.session_id, "feed_type_selected", "4.5_week")
         if st.button("⚠️ Significant Events", key="significant"):
             st.session_state.feed_type = "significant_month"
+            logger.info(f"Session {st.session_state.session_id[-8:]} - Selected feed type: significant_month")
+            save_user_metrics(st.session_state.session_id, "feed_type_selected", "significant_month")
     
     # Initialize session state
     if 'feed_type' not in st.session_state:
@@ -715,6 +880,12 @@ def main():
             help="Select geographic region to monitor"
         )
         
+        # Track region selection if it changed
+        if 'last_selected_region' not in st.session_state or st.session_state.last_selected_region != selected_region:
+            st.session_state.last_selected_region = selected_region
+            save_user_metrics(st.session_state.session_id, "region_selected", selected_region)
+            logger.info(f"Session {st.session_state.session_id[-8:]} - Selected region: {selected_region}")
+        
         region = region_options[selected_region]
     
     with col2:
@@ -724,12 +895,16 @@ def main():
         show_recent_toggle = st.checkbox("📋 Show Recent List", value=True)
     
     # Fetch and process data
+    logger.info(f"Session {st.session_state.session_id[-8:]} - Loading data: feed_type={feed_type}, region={region}, min_magnitude={min_magnitude}")
+    
     with st.spinner("📡 Loading real-time earthquake data..."):
         earthquakes = fetch_earthquake_data(feed_type, region)
     
     # Apply magnitude filter
     if min_magnitude > 0.0:
+        original_count = len(earthquakes)
         earthquakes = [eq for eq in earthquakes if eq.get('magnitude', 0) >= min_magnitude]
+        logger.info(f"Applied magnitude filter {min_magnitude}: {original_count} -> {len(earthquakes)} earthquakes")
     
     if earthquakes:
         # Calculate accurate counts
