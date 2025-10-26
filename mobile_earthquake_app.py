@@ -204,13 +204,14 @@ def track_visitor():
     # Periodic cleanup of old data with enhanced retention policies
     import random
     app_config = get_app_config()
-    cleanup_frequency = app_config.get("retention_policy.cleanup_frequency_percent", 1)
+    retention_config = app_config.get_retention_config()
+    cleanup_frequency = retention_config['cleanup_frequency_percent']
     
     if cleanup_frequency > 0 and random.randint(1, 100) <= cleanup_frequency:
         try:
             # Use different retention for different data types
-            metrics_retention_days = app_config.get("retention_policy.metrics_retention_days", 90)
-            session_retention_days = app_config.get("retention_policy.session_retention_days", 120)
+            metrics_retention_days = retention_config['metrics_retention_days']
+            session_retention_days = retention_config['session_retention_days']
             
             # Cleanup both systems with appropriate retention
             metrics.cleanup_old_data(days_to_keep=metrics_retention_days)
@@ -705,7 +706,8 @@ for the USGS Earthquake Monitor application.
         with col1:
             if st.button("🧹 Clean Old Metrics", help="Remove daily data older than configured days"):
                 try:
-                    current_retention = app_config.get("retention_policy.metrics_retention_days", 90)
+                    retention_config = app_config.get_retention_config()
+                    current_retention = retention_config['metrics_retention_days']
                     metrics = get_metrics()
                     metrics.cleanup_old_data(days_to_keep=current_retention)
                     st.success(f"✅ Cleaned metrics data older than {current_retention} days!")
@@ -716,7 +718,8 @@ for the USGS Earthquake Monitor application.
             
             if st.button("🔐 Clean Old Sessions", help="Remove session data older than configured days"):
                 try:
-                    session_retention = app_config.get("retention_policy.session_retention_days", 120)
+                    retention_config = app_config.get_retention_config()
+                    session_retention = retention_config['session_retention_days']
                     session_manager = get_session_manager()
                     session_manager.cleanup_old_sessions(days_to_keep=session_retention)
                     st.success(f"✅ Cleaned session data older than {session_retention} days!")
@@ -737,7 +740,8 @@ for the USGS Earthquake Monitor application.
             
             if st.button("🛡️ Clean Security Logs", help="Remove old security events"):
                 try:
-                    security_retention = app_config.get("retention_policy.security_log_retention_days", 365)
+                    retention_config = app_config.get_retention_config()
+                    security_retention = retention_config['security_log_retention_days']
                     session_manager = get_session_manager()
                     # This would need a new method in session manager for security cleanup
                     st.info(f"🔍 Security logs retention: {security_retention} days")
@@ -917,7 +921,8 @@ for the USGS Earthquake Monitor application.
                 if st.button("🧹 Cleanup Sessions", help="Remove old session data"):
                     try:
                         app_config = get_app_config()
-                        retention_days = app_config.get("retention_policy.metrics_retention_days", 90)
+                        retention_config = app_config.get_retention_config()
+                        retention_days = retention_config['session_retention_days']
                         session_manager.cleanup_old_sessions(days_to_keep=retention_days)
                         st.success(f"✅ Cleaned sessions older than {retention_days} days!")
                         logger.info(f"ADMIN_ACTION | Manual session cleanup: {retention_days} days")
@@ -941,7 +946,7 @@ st.set_page_config(
     page_title="🌍 USGS Earthquake Monitor",
     page_icon="🌍",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"  # Changed to expanded so admin features are visible
 )
 
 # Custom CSS for mobile optimization

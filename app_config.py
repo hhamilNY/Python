@@ -145,18 +145,54 @@ class AppConfig:
                 logging.error(f"CONFIG_ERROR | Failed to set {path} = {value}: {e}")
                 return False
     
+    def _safe_int(self, value, default):
+        """Safely convert value to int"""
+        try:
+            if value is None:
+                return default
+            if isinstance(value, (int, float)):
+                return int(value)
+            if isinstance(value, str):
+                return int(float(value))
+            return default
+        except (ValueError, TypeError):
+            return default
+    
+    def _safe_str(self, value, default):
+        """Safely convert value to str"""
+        try:
+            if value is None:
+                return default
+            return str(value)
+        except (ValueError, TypeError):
+            return default
+    
+    def _safe_bool(self, value, default):
+        """Safely convert value to bool"""
+        try:
+            if value is None:
+                return default
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, str):
+                return value.lower() in ('true', '1', 'yes', 'on')
+            return bool(value)
+        except (ValueError, TypeError):
+            return default
+
     def get_retention_config(self):
         """Get retention policy configuration"""
         with self.lock:
+            # Use safe conversion methods to ensure proper types
             return {
-                "metrics_retention_days": self.get("retention_policy.metrics_retention_days", 90),
-                "cleanup_frequency_percent": self.get("retention_policy.cleanup_frequency_percent", 1),
-                "log_max_size_mb": self.get("retention_policy.log_max_size_mb", 5),
-                "log_backup_count": self.get("retention_policy.log_backup_count", 10),
-                "user_data_retention_days": self.get("retention_policy.user_data_retention_days", 180),
-                "user_log_backup_count": self.get("retention_policy.user_log_backup_count", 20),
-                "session_retention_days": self.get("retention_policy.session_retention_days", 120),
-                "security_log_retention_days": self.get("retention_policy.security_log_retention_days", 365)
+                "metrics_retention_days": self._safe_int(self.get("retention_policy.metrics_retention_days", 90), 90),
+                "cleanup_frequency_percent": self._safe_int(self.get("retention_policy.cleanup_frequency_percent", 1), 1),
+                "log_max_size_mb": self._safe_int(self.get("retention_policy.log_max_size_mb", 5), 5),
+                "log_backup_count": self._safe_int(self.get("retention_policy.log_backup_count", 10), 10),
+                "user_data_retention_days": self._safe_int(self.get("retention_policy.user_data_retention_days", 180), 180),
+                "user_log_backup_count": self._safe_int(self.get("retention_policy.user_log_backup_count", 20), 20),
+                "session_retention_days": self._safe_int(self.get("retention_policy.session_retention_days", 120), 120),
+                "security_log_retention_days": self._safe_int(self.get("retention_policy.security_log_retention_days", 365), 365)
             }
     
     def update_retention_config(self, metrics_days=None, cleanup_frequency=None, log_size_mb=None, 
@@ -202,10 +238,10 @@ class AppConfig:
         """Get application settings"""
         with self.lock:
             return {
-                "default_feed_type": self.get("app_settings.default_feed_type", "all_hour"),
-                "default_view_type": self.get("app_settings.default_view_type", "overview"),
-                "cache_ttl_seconds": self.get("app_settings.cache_ttl_seconds", 300),
-                "admin_mode_enabled": self.get("app_settings.admin_mode_enabled", True)
+                "default_feed_type": self._safe_str(self.get("app_settings.default_feed_type", "all_hour"), "all_hour"),
+                "default_view_type": self._safe_str(self.get("app_settings.default_view_type", "overview"), "overview"),
+                "cache_ttl_seconds": self._safe_int(self.get("app_settings.cache_ttl_seconds", 300), 300),
+                "admin_mode_enabled": self._safe_bool(self.get("app_settings.admin_mode_enabled", True), True)
             }
     
     def export_config(self):
