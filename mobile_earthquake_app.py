@@ -409,6 +409,13 @@ def show_admin_dashboard():
     """
     st.sidebar.title("📊 Analytics Dashboard")
     
+    # Exit admin mode button
+    if st.sidebar.button("❌ Exit Admin Mode", help="Return to normal view"):
+        st.session_state.show_admin = False
+        st.rerun()
+    
+    st.sidebar.markdown("---")
+    
     # Basic stats
     stats = get_visit_stats()
     st.sidebar.metric("🌍 Unique Visitors", stats["unique_visitors"])
@@ -1927,6 +1934,82 @@ def create_regional_chart(earthquakes):
         st.plotly_chart(fig, use_container_width=True)
 
 
+def create_sidebar_controls():
+    """Create sidebar controls for earthquake monitoring settings"""
+    
+    # Earthquake Settings Section
+    st.sidebar.title("🌍 Earthquake Settings")
+    
+    # Feed Type Selection
+    st.sidebar.subheader("📡 Data Feed")
+    current_feed = st.session_state.get('feed_type', 'all_hour')
+    
+    feed_options = {
+        "all_hour": "🕐 Past Hour (All)",
+        "all_day": "📅 Past Day (All)", 
+        "all_week": "🌍 Past Week (All)",
+        "significant_month": "🌊 Significant (Month)",
+        "4.5_week": "🌋 Major (M4.5+ Week)"
+    }
+    
+    selected_feed = st.sidebar.selectbox(
+        "Choose data source:",
+        options=list(feed_options.keys()),
+        format_func=lambda x: feed_options[x],
+        index=list(feed_options.keys()).index(current_feed)
+    )
+    
+    if selected_feed != current_feed:
+        st.session_state.feed_type = selected_feed
+        log_user_action("data_source_change", selected_feed)
+        st.rerun()
+    
+    # View Type Selection
+    st.sidebar.subheader("📊 Display Options")
+    current_view = st.session_state.get('view_type', 'overview')
+    
+    view_options = {
+        "overview": "📋 Overview",
+        "map": "🗺️ Interactive Map",
+        "charts": "📈 Charts & Analytics",
+        "list": "📝 Detailed List"
+    }
+    
+    selected_view = st.sidebar.selectbox(
+        "Choose view type:",
+        options=list(view_options.keys()),
+        format_func=lambda x: view_options[x],
+        index=list(view_options.keys()).index(current_view)
+    )
+    
+    if selected_view != current_view:
+        st.session_state.view_type = selected_view
+        log_user_action("view_change", selected_view)
+        st.rerun()
+    
+    # Magnitude Filter
+    st.sidebar.subheader("📏 Filters")
+    min_magnitude = st.sidebar.slider(
+        "Minimum Magnitude:",
+        min_value=0.0,
+        max_value=7.0,
+        value=st.session_state.get('min_magnitude', 0.0),
+        step=0.1,
+        help="Filter earthquakes by minimum magnitude"
+    )
+    
+    if min_magnitude != st.session_state.get('min_magnitude', 0.0):
+        st.session_state.min_magnitude = min_magnitude
+        log_user_action("filter_change", f"magnitude_{min_magnitude}")
+    
+    # Quick Admin Access
+    st.sidebar.markdown("---")
+    if st.sidebar.button("🔧 Admin Dashboard", help="Access admin features"):
+        # Trigger admin mode by setting session state
+        st.session_state.show_admin = True
+        st.rerun()
+
+
 def main():
     """
     Main mobile web app function and entry point.
@@ -1945,19 +2028,28 @@ def main():
     view modes including overview, map, list, statistics, and regional analysis.
     All interactions are logged for analytics and debugging purposes.
     """
-    # Check for admin dashboard access via URL parameter with multiple methods
+    # Check for admin dashboard access via URL parameter and session state
     show_admin = False
     
+    # First check session state
+    if st.session_state.get('show_admin', False):
+        show_admin = True
+    
+    # Also check URL parameters
     try:
         # Method 1: Try st.query_params (newer Streamlit versions)
         if hasattr(st, 'query_params'):
             query_params = st.query_params
-            show_admin = query_params.get('admin') == 'true'
+            if query_params.get('admin') == 'true':
+                show_admin = True
+                st.session_state.show_admin = True
         
         # Method 2: Try st.experimental_get_query_params (older versions)
         elif hasattr(st, 'experimental_get_query_params'):
             query_params = st.experimental_get_query_params()
-            show_admin = query_params.get('admin', [''])[0] == 'true'
+            if query_params.get('admin', [''])[0] == 'true':
+                show_admin = True
+                st.session_state.show_admin = True
         
         # Method 3: Check browser URL directly (most compatible)
         else:
@@ -1975,12 +2067,6 @@ def main():
         show_admin = False
         logger.warning(f"ADMIN_ACCESS | URL parameter check failed: {e}")
     
-    # Fallback: Add a secret button for admin access if URL method fails
-    if not show_admin:
-        if st.sidebar.button("🔧 Admin Dashboard", help="Click to show analytics"):
-            show_admin = True
-            st.info("🔧 **Admin Mode Activated via Button** - Analytics dashboard shown below")
-    
     # Track visitor (must be called early)
     visitor_id = track_visitor()
     
@@ -1993,10 +2079,11 @@ def main():
     # Show admin dashboard if requested
     if show_admin:
         show_admin_dashboard()
-    
-    create_mobile_header()
-    
-    # Initialize session state first
+    else:
+        # Create regular sidebar when not in admin mode
+        create_sidebar_controls()
+
+    create_mobile_header()    # Initialize session state first
     if 'feed_type' not in st.session_state:
         st.session_state.feed_type = "all_hour"
         logger.info(f"SESSION_INIT | Default feed_type: all_hour")
@@ -2106,11 +2193,18 @@ def main():
         earthquakes = fetch_earthquake_data(st.session_state.feed_type)
     
     if earthquakes:
+        # Apply magnitude filter from sidebar
+        min_mag = st.session_state.get('min_magnitude', 0.0)
+        if min_mag > 0.0:
+            earthquakes = [eq for eq in earthquakes if eq.get('magnitude', 0) >= min_mag]
+            logger.info(f"FILTER | Applied magnitude filter ≥{min_mag}: {len(earthquakes)} earthquakes remaining")
+        
         valid_count = sum(1 for eq in earthquakes if eq['magnitude'] is not None and eq['magnitude'] > 0)
         invalid_count = len(earthquakes) - valid_count
         
         if invalid_count > 0:
-            st.success(f"✅ Found {len(earthquakes)} earthquakes in USA ({valid_count} with valid magnitude data, {invalid_count} pending analysis)")
+            filter_info = f" (filtered by magnitude ≥{min_mag})" if min_mag > 0.0 else ""
+            st.success(f"✅ Found {len(earthquakes)} earthquakes in USA{filter_info} ({valid_count} with valid magnitude data, {invalid_count} pending analysis)")
             st.info(f"ℹ️ **Data Quality Note:** Displaying {valid_count} earthquakes with confirmed magnitude readings. USGS sometimes reports events with incomplete magnitude data that are excluded from analysis.")
             
             # Add expandable explanation for data filtering
