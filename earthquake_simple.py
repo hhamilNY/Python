@@ -447,6 +447,22 @@ def main():
     # Advanced View Controls
     st.markdown("<h3 style='text-align: center;'>🎛️ Advanced Controls</h3>", unsafe_allow_html=True)
     
+    # Show current view settings (after session state is initialized)
+    view_status = []
+    if hasattr(st.session_state, 'show_stats') and st.session_state.show_stats:
+        view_status.append("📊 Statistics")
+    if hasattr(st.session_state, 'show_charts') and st.session_state.show_charts:
+        view_status.append("📈 Charts")
+    if hasattr(st.session_state, 'show_map') and st.session_state.show_map:
+        view_status.append("🗺️ Map")
+    if hasattr(st.session_state, 'show_recent') and st.session_state.show_recent:
+        view_status.append("📋 Recent List")
+    
+    if view_status:
+        st.info(f"🎮 **Active Views:** {' • '.join(view_status)}")
+    else:
+        st.warning("⚠️ No views enabled - select display options below")
+    
     col1, col2 = st.columns(2)
     
     with col1:
@@ -478,10 +494,42 @@ def main():
         region = region_options[selected_region]
     
     with col2:
-        show_stats_toggle = st.checkbox("📊 Show Statistics", value=True)
-        show_charts_toggle = st.checkbox("📈 Show Charts", value=True)
-        show_map_toggle = st.checkbox("🗺️ Show Map", value=True)
-        show_recent_toggle = st.checkbox("📋 Show Recent List", value=True)
+        # Initialize view toggle states
+        if 'show_stats' not in st.session_state:
+            st.session_state.show_stats = True
+        if 'show_charts' not in st.session_state:
+            st.session_state.show_charts = True
+        if 'show_map' not in st.session_state:
+            st.session_state.show_map = True
+        if 'show_recent' not in st.session_state:
+            st.session_state.show_recent = True
+        
+        # Toggle buttons with active states
+        if st.button("📊 Show Statistics", key="stats_toggle",
+                    type="primary" if st.session_state.show_stats else "secondary"):
+            st.session_state.show_stats = not st.session_state.show_stats
+            st.rerun()
+            
+        if st.button("📈 Show Charts", key="charts_toggle",
+                    type="primary" if st.session_state.show_charts else "secondary"):
+            st.session_state.show_charts = not st.session_state.show_charts
+            st.rerun()
+            
+        if st.button("🗺️ Show Map", key="map_toggle",
+                    type="primary" if st.session_state.show_map else "secondary"):
+            st.session_state.show_map = not st.session_state.show_map
+            st.rerun()
+            
+        if st.button("📋 Show Recent List", key="recent_toggle",
+                    type="primary" if st.session_state.show_recent else "secondary"):
+            st.session_state.show_recent = not st.session_state.show_recent
+            st.rerun()
+        
+        # Use session state values
+        show_stats_toggle = st.session_state.show_stats
+        show_charts_toggle = st.session_state.show_charts
+        show_map_toggle = st.session_state.show_map
+        show_recent_toggle = st.session_state.show_recent
     
     # Fetch and process data
     with st.spinner("📡 Loading advanced earthquake data..."):
