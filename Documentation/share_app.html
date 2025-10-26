@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌍 USGS Earthquake Monitor - Access Link</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+        }
+        .title {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        .link-card {
+            background: #f8f9ff;
+            border: 2px solid #e1e5fe;
+            border-radius: 15px;
+            padding: 25px;
+            margin: 20px 0;
+            transition: all 0.3s ease;
+        }
+        .link-card:hover {
+            border-color: #3f51b5;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .link-title {
+            font-weight: bold;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+            color: #3f51b5;
+        }
+        .link-url {
+            font-family: 'Courier New', monospace;
+            background: #f0f0f0;
+            padding: 10px;
+            border-radius: 8px;
+            word-break: break-all;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+        }
+        .copy-btn {
+            background: #3f51b5;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+            transition: background 0.3s ease;
+        }
+        .copy-btn:hover {
+            background: #303f9f;
+        }
+        .instructions {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        .step {
+            margin: 10px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+        .step:before {
+            content: "📱";
+            position: absolute;
+            left: 0;
+        }
+        .warning {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+            color: #721c24;
+        }
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+                margin: 10px;
+            }
+            .title {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="title">🌍 USGS Earthquake Monitor</div>
+        <div class="subtitle">Real-time earthquake monitoring web app</div>
+        
+        <div class="link-card">
+            <div class="link-title">🏠 Local Network Access</div>
+            <div class="link-url" id="localUrl">http://192.168.1.217:8501</div>
+            <button class="copy-btn" onclick="copyToClipboard('localUrl')">📋 Copy Link</button>
+            <p><small>For devices on the same WiFi network</small></p>
+        </div>
+        
+        <div class="link-card">
+            <div class="link-title">💻 Local Computer Access</div>
+            <div class="link-url" id="localhostUrl">http://localhost:8501</div>
+            <button class="copy-btn" onclick="copyToClipboard('localhostUrl')">📋 Copy Link</button>
+            <p><small>For use on the same computer</small></p>
+        </div>
+        
+        <div class="instructions">
+            <h3>📱 How to Access on Mobile:</h3>
+            <div class="step">Make sure you're connected to the same WiFi network</div>
+            <div class="step">Copy the Local Network Access link above</div>
+            <div class="step">Open Safari (iPhone) or Chrome (Android)</div>
+            <div class="step">Paste the link in the address bar</div>
+            <div class="step">Tap "Add to Home Screen" for app-like experience</div>
+        </div>
+        
+        <div class="warning">
+            <strong>⚠️ Troubleshooting:</strong><br>
+            If the link doesn't work:<br>
+            • Check you're on the same WiFi network<br>
+            • Try opening in a web browser (Safari/Chrome)<br>
+            • Make sure the computer running the app is still on<br>
+            • Contact the app owner for alternative access methods
+        </div>
+        
+        <div class="link-card">
+            <div class="link-title">📊 System Monitoring</div>
+            <p style="text-align: left; margin: 10px 0;">
+                <strong>Logging Features:</strong><br>
+                • 🌐 Data fetching & API performance tracking<br>
+                • 👤 User interaction analytics<br>
+                • ⚡ Performance metrics & timing<br>
+                • ❌ Error detection & reporting<br>
+                • 🔄 5MB log files, 10 file rotation limit
+            </p>
+            <p style="font-size: 0.9em; color: #666;">
+                Logs stored locally in <code>logs/earthquake_app.log</code><br>
+                See <a href="logging_system.md" style="color: #3f51b5;">logging_system.md</a> for detailed documentation
+            </p>
+        </div>
+        
+        <div style="margin-top: 30px; color: #666; font-size: 0.9em;">
+            <p>📡 Data from USGS Earthquake Hazards Program</p>
+            <p>🔄 Updates automatically every 5 minutes</p>
+            <p>📋 Complete documentation available in Documentation folder</p>
+        </div>
+    </div>
+
+    <script>
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.textContent;
+            
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showCopySuccess();
+                });
+            } else {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showCopySuccess();
+            }
+        }
+        
+        function showCopySuccess() {
+            const originalTitle = document.title;
+            document.title = "✅ Link Copied!";
+            setTimeout(() => {
+                document.title = originalTitle;
+            }, 2000);
+        }
+        
+        // Auto-detect if running locally and update instructions
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            document.querySelector('.warning').innerHTML = `
+                <strong>✅ App is Running!</strong><br>
+                You can access the earthquake monitor directly or share the Local Network link with friends on the same WiFi.
+            `;
+        }
+    </script>
+</body>
+</html>
