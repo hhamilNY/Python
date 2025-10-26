@@ -155,27 +155,90 @@ def create_map(earthquakes, region="usa"):
     
     st.plotly_chart(fig, use_container_width=True)
 
-def show_stats(earthquakes):
-    """Show earthquake statistics"""
+def show_stats(earthquakes, region="USA"):
+    """Show comprehensive earthquake statistics"""
     if not earthquakes:
+        st.warning("⚠️ No earthquake data available for statistics")
         return
     
     valid_earthquakes = [eq for eq in earthquakes if eq['magnitude'] > 0]
     if not valid_earthquakes:
+        st.warning("⚠️ No valid earthquake data for statistics")
         return
     
     magnitudes = [eq['magnitude'] for eq in valid_earthquakes]
+    depths = [eq['depth'] for eq in valid_earthquakes]
+    times = [eq['time'] for eq in valid_earthquakes]
     
-    col1, col2, col3 = st.columns(3)
+    # Basic Statistics Row
+    st.markdown("<h4 style='text-align: center;'>📊 Basic Statistics</h4>", unsafe_allow_html=True)
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric("Total Earthquakes", len(valid_earthquakes))
+        st.metric("Total Events", len(valid_earthquakes))
     
     with col2:
         st.metric("Max Magnitude", f"M {max(magnitudes):.1f}")
     
     with col3:
         st.metric("Avg Magnitude", f"M {np.mean(magnitudes):.1f}")
+    
+    with col4:
+        st.metric("Avg Depth", f"{np.mean(depths):.1f} km")
+    
+    # Magnitude Categories
+    st.markdown("<h4 style='text-align: center;'>🌋 Magnitude Categories</h4>", unsafe_allow_html=True)
+    col1, col2, col3, col4 = st.columns(4)
+    
+    micro = len([m for m in magnitudes if 0 <= m < 3.0])
+    minor = len([m for m in magnitudes if 3.0 <= m < 4.0])
+    light = len([m for m in magnitudes if 4.0 <= m < 5.0])
+    moderate_plus = len([m for m in magnitudes if m >= 5.0])
+    
+    with col1:
+        st.metric("🔸 Micro (0-2.9)", micro, help="Usually not felt")
+    
+    with col2:
+        st.metric("🔹 Minor (3.0-3.9)", minor, help="Rarely felt")
+    
+    with col3:
+        st.metric("🟠 Light (4.0-4.9)", light, help="Often felt, little damage")
+    
+    with col4:
+        st.metric("🔴 Moderate+ (5.0+)", moderate_plus, help="Can cause damage")
+    
+    # Depth Analysis
+    st.markdown("<h4 style='text-align: center;'>🕳️ Depth Analysis</h4>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns(3)
+    
+    shallow = len([d for d in depths if 0 <= d < 70])
+    intermediate = len([d for d in depths if 70 <= d < 300])
+    deep = len([d for d in depths if d >= 300])
+    
+    with col1:
+        st.metric("Shallow (0-70km)", shallow, help="Most damaging earthquakes")
+    
+    with col2:
+        st.metric("Intermediate (70-300km)", intermediate, help="Moderate depth")
+    
+    with col3:
+        st.metric("Deep (300km+)", deep, help="Rarely cause surface damage")
+    
+    # Recent Activity
+    if times:
+        latest_time = max(times)
+        latest_dt = datetime.fromtimestamp(latest_time/1000)
+        time_ago = datetime.now() - latest_dt
+        
+        st.markdown("<h4 style='text-align: center;'>⏰ Recent Activity</h4>", unsafe_allow_html=True)
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.metric("Latest Event", latest_dt.strftime("%m/%d %H:%M"))
+        
+        with col2:
+            hours_ago = int(time_ago.total_seconds() / 3600)
+            st.metric("Hours Ago", f"{hours_ago}h")
 
 def main():
     """Main application"""
@@ -247,6 +310,7 @@ def main():
         region = region_options[selected_region]
     
     with col2:
+        show_stats_toggle = st.checkbox("Show Statistics", value=True, help="Display detailed earthquake statistics")
         show_recent = st.checkbox("Show Recent List", value=True, help="Display list of recent earthquakes")
         show_map = st.checkbox("Show Map", value=True, help="Display earthquake map")
     
@@ -273,7 +337,8 @@ def main():
         st.info(f"📊 **{selected_name}** | 🌍 **{selected_region}** | Min Magnitude: **M {min_magnitude}**")
         st.success(f"✅ Found {len(earthquakes)} earthquakes")
         
-        show_stats(earthquakes)
+        if show_stats_toggle:
+            show_stats(earthquakes, selected_region)
         
         if show_map:
             create_map(earthquakes, region)
