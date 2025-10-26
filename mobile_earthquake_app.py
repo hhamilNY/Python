@@ -17,6 +17,7 @@ import time
 import os
 from functools import wraps
 from visitor_metrics import get_metrics
+from app_config import get_app_config
 
 
 # Configure logging with rotation
@@ -160,11 +161,12 @@ def track_visitor():
     
     # Periodic cleanup of old metrics data (run occasionally)
     import random
-    cleanup_frequency = st.session_state.get('cleanup_frequency_percent', 1)
+    app_config = get_app_config()
+    cleanup_frequency = app_config.get("retention_policy.cleanup_frequency_percent", 1)
     
     if cleanup_frequency > 0 and random.randint(1, 100) <= cleanup_frequency:
         try:
-            retention_days = st.session_state.get('metrics_retention_days', 90)
+            retention_days = app_config.get("retention_policy.metrics_retention_days", 90)
             metrics.cleanup_old_data(days_to_keep=retention_days)
             logger.info(f"METRICS_CLEANUP | Automatic cleanup completed: {retention_days} days retention, {cleanup_frequency}% frequency")
         except Exception as e:
@@ -531,16 +533,15 @@ for the USGS Earthquake Monitor application.
     
     # Add data retention policy information
     with st.sidebar.expander("🗂️ Data Retention Policy", expanded=False):
+        # Get app configuration
+        app_config = get_app_config()
+        retention_config = app_config.get_retention_config()
+        
         st.write("**📊 Current Retention Settings:**")
-        
-        # Get current retention settings from session state or use defaults
-        current_metrics_retention = st.session_state.get('metrics_retention_days', 90)
-        current_cleanup_frequency = st.session_state.get('cleanup_frequency_percent', 1)
-        
-        st.write(f"- Daily metrics: {current_metrics_retention} days")
-        st.write(f"- Auto-cleanup frequency: {current_cleanup_frequency}% chance per visit")
+        st.write(f"- Daily metrics: {retention_config['metrics_retention_days']} days")
+        st.write(f"- Auto-cleanup frequency: {retention_config['cleanup_frequency_percent']}% chance per visit")
         st.write("- Summary stats: Permanent")
-        st.write("- Log files: 5MB + 10 backups (~50MB)")
+        st.write(f"- Log files: {retention_config['log_max_size_mb']}MB + {retention_config['log_backup_count']} backups")
         
         st.write("**⚙️ Configure Retention:**")
         
@@ -549,7 +550,7 @@ for the USGS Earthquake Monitor application.
             "Days to keep daily metrics",
             min_value=7,
             max_value=365,
-            value=current_metrics_retention,
+            value=retention_config['metrics_retention_days'],
             step=7,
             help="Number of days to keep daily visitor/page view breakdowns"
         )
@@ -559,40 +560,72 @@ for the USGS Earthquake Monitor application.
             "Auto-cleanup frequency (%)",
             min_value=0,
             max_value=10,
-            value=current_cleanup_frequency,
+            value=retention_config['cleanup_frequency_percent'],
             step=1,
             help="Percentage chance of cleanup per visitor (0 = manual only)"
         )
         
+        # Log file settings
+        col1, col2 = st.columns(2)
+        with col1:
+            new_log_size = st.number_input(
+                "Log file size (MB)",
+                min_value=1,
+                max_value=50,
+                value=retention_config['log_max_size_mb'],
+                help="Maximum size of each log file"
+            )
+        
+        with col2:
+            new_log_backup_count = st.number_input(
+                "Log backup files",
+                min_value=1,
+                max_value=20,
+                value=retention_config['log_backup_count'],
+                help="Number of backup log files to keep"
+            )
+        
         # Apply settings button
-        if st.button("💾 Apply Retention Settings", help="Save new retention policy"):
-            st.session_state.metrics_retention_days = new_metrics_retention
-            st.session_state.cleanup_frequency_percent = new_cleanup_frequency
-            st.success(f"✅ Retention updated: {new_metrics_retention} days, {new_cleanup_frequency}% frequency")
-            logger.info(f"ADMIN_CONFIG | Retention policy updated: {new_metrics_retention} days, {new_cleanup_frequency}% frequency")
+        if st.button("💾 Apply Retention Settings", help="Save new retention policy to mobile_config.json"):
+            success = app_config.update_retention_config(
+                metrics_days=new_metrics_retention,
+                cleanup_frequency=new_cleanup_frequency,
+                log_size_mb=new_log_size,
+                log_backup_count=new_log_backup_count
+            )
+            
+            if success:
+                st.success(f"✅ Retention saved to mobile_config.json!")
+                st.info(f"📋 Settings: {new_metrics_retention} days, {new_cleanup_frequency}% frequency, {new_log_size}MB logs")
+                logger.info(f"ADMIN_CONFIG | Retention policy updated in mobile_config.json")
+            else:
+                st.error("❌ Failed to save configuration")
         
         st.write("**🔧 Manual Actions:**")
         
-        # Manual cleanup with custom retention
+        # Manual cleanup with current retention
         col1, col2 = st.columns(2)
         with col1:
             if st.button("🧹 Clean Old Metrics", help="Remove daily data older than configured days"):
                 try:
-                    retention_days = st.session_state.get('metrics_retention_days', 90)
+                    current_retention = app_config.get("retention_policy.metrics_retention_days", 90)
                     metrics = get_metrics()
-                    metrics.cleanup_old_data(days_to_keep=retention_days)
-                    st.success(f"✅ Cleaned data older than {retention_days} days!")
-                    logger.info(f"ADMIN_ACTION | Manual metrics cleanup: {retention_days} days")
+                    metrics.cleanup_old_data(days_to_keep=current_retention)
+                    st.success(f"✅ Cleaned data older than {current_retention} days!")
+                    logger.info(f"ADMIN_ACTION | Manual metrics cleanup: {current_retention} days")
                 except Exception as e:
                     st.error(f"❌ Cleanup failed: {e}")
                     logger.error(f"ADMIN_ACTION | Manual cleanup failed: {e}")
         
         with col2:
-            if st.button("🔄 Reset to Defaults", help="Reset retention to default values"):
-                st.session_state.metrics_retention_days = 90
-                st.session_state.cleanup_frequency_percent = 1
-                st.success("✅ Reset to defaults: 90 days, 1% frequency")
-                logger.info("ADMIN_CONFIG | Retention policy reset to defaults")
+            if st.button("🔄 Reset to Defaults", help="Reset all settings to default values"):
+                success = app_config.reset_to_defaults()
+                if success:
+                    st.success("✅ Reset to defaults in mobile_config.json!")
+                    logger.info("ADMIN_CONFIG | Configuration reset to defaults")
+                    st.rerun()  # Refresh to show new values
+                else:
+                    st.error("❌ Failed to reset configuration")
         
         # Show current storage info
         try:
@@ -607,6 +640,10 @@ for the USGS Earthquake Monitor application.
                 st.write(f"- Metrics file: {metrics_size:,} bytes")
             else:
                 st.write("- Metrics file: Not created yet")
+            
+            # Check config file size
+            config_summary = app_config.get_config_summary()
+            st.write(f"- Config file: {config_summary['file_size']:,} bytes")
             
             # Check log files size
             log_dir = "logs"
@@ -623,18 +660,17 @@ for the USGS Earthquake Monitor application.
                     st.write(f"- Log files: {total_log_size:,} bytes ({log_files} files)")
                     
                     # Show warning if approaching limits
-                    if total_log_size > 40 * 1024 * 1024:  # 40MB
-                        st.warning("⚠️ Log files approaching 50MB limit")
+                    max_log_storage = retention_config['log_max_size_mb'] * retention_config['log_backup_count'] * 1024 * 1024
+                    if total_log_size > max_log_storage * 0.8:  # 80% of limit
+                        st.warning(f"⚠️ Log files approaching {max_log_storage // (1024*1024)}MB limit")
                 else:
                     st.write("- Log files: No log files yet")
             else:
                 st.write("- Log files: Logs directory not created")
             
-            # Show metrics file age
-            if os.path.exists(metrics_file):
-                import time
-                file_age_days = (time.time() - os.path.getmtime(metrics_file)) / 86400
-                st.write(f"- Metrics file age: {file_age_days:.1f} days")
+            # Show config file info
+            st.write(f"- Config created: {config_summary.get('created_date', 'Unknown')[:10]}")
+            st.write(f"- Config updated: {config_summary.get('last_updated', 'Unknown')[:10]}")
             
         except Exception as e:
             st.write(f"⚠️ Storage info unavailable: {e}")
@@ -643,21 +679,47 @@ for the USGS Earthquake Monitor application.
         st.write("**⚙️ Configuration Management:**")
         
         # Export current settings
-        import json
-        current_config = {
-            "metrics_retention_days": st.session_state.get('metrics_retention_days', 90),
-            "cleanup_frequency_percent": st.session_state.get('cleanup_frequency_percent', 1),
-            "export_timestamp": datetime.now().isoformat()
-        }
+        col1, col2 = st.columns(2)
         
-        config_json = json.dumps(current_config, indent=2)
-        st.download_button(
-            label="📋 Export Config",
-            data=config_json,
-            file_name=f"retention_config_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-            mime="application/json",
-            help="Download current retention configuration"
-        )
+        with col1:
+            config_export = app_config.export_config()
+            if config_export:
+                st.download_button(
+                    label="📋 Export Config",
+                    data=config_export,
+                    file_name=f"mobile_config_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                    mime="application/json",
+                    help="Download complete configuration including all settings"
+                )
+        
+        with col2:
+            # Import configuration
+            uploaded_config = st.file_uploader(
+                "📁 Import Config",
+                type=['json'],
+                help="Upload a mobile_config.json file to restore settings"
+            )
+            
+            if uploaded_config is not None:
+                try:
+                    config_content = uploaded_config.read().decode('utf-8')
+                    success = app_config.import_config(config_content)
+                    
+                    if success:
+                        st.success("✅ Configuration imported successfully!")
+                        logger.info("ADMIN_CONFIG | Configuration imported from file")
+                        st.rerun()  # Refresh to show new values
+                    else:
+                        st.error("❌ Failed to import configuration")
+                        
+                except Exception as e:
+                    st.error(f"❌ Import error: {e}")
+                    logger.error(f"ADMIN_CONFIG | Config import failed: {e}")
+        
+        # Show configuration file location
+        st.write("**📄 Configuration File:**")
+        st.code(f"Location: {app_config.config_file}")
+        st.write("This file persists all your retention and app settings.")
 
 
 # Configure Streamlit page
