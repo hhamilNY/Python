@@ -160,10 +160,13 @@ def track_visitor():
     
     # Periodic cleanup of old metrics data (run occasionally)
     import random
-    if random.randint(1, 100) == 1:  # 1% chance each visit
+    cleanup_frequency = st.session_state.get('cleanup_frequency_percent', 1)
+    
+    if cleanup_frequency > 0 and random.randint(1, 100) <= cleanup_frequency:
         try:
-            metrics.cleanup_old_data(days_to_keep=90)  # Keep 90 days of daily data
-            logger.info("METRICS_CLEANUP | Automatic cleanup completed")
+            retention_days = st.session_state.get('metrics_retention_days', 90)
+            metrics.cleanup_old_data(days_to_keep=retention_days)
+            logger.info(f"METRICS_CLEANUP | Automatic cleanup completed: {retention_days} days retention, {cleanup_frequency}% frequency")
         except Exception as e:
             logger.warning(f"METRICS_CLEANUP | Cleanup failed: {e}")
     
@@ -528,39 +531,82 @@ for the USGS Earthquake Monitor application.
     
     # Add data retention policy information
     with st.sidebar.expander("🗂️ Data Retention Policy", expanded=False):
-        st.write("**📊 Visitor Metrics:**")
-        st.write("- Summary stats: Permanent")
-        st.write("- Daily breakdowns: 90 days")
-        st.write("- Popular items: Permanent")
-        st.write("- Auto-cleanup: Random intervals")
+        st.write("**📊 Current Retention Settings:**")
         
-        st.write("**📋 Log Files:**")
-        st.write("- Main log: 5MB max size")
-        st.write("- Backup logs: 10 files kept")
-        st.write("- Total storage: ~50MB")
-        st.write("- Auto-rotation: When size exceeded")
+        # Get current retention settings from session state or use defaults
+        current_metrics_retention = st.session_state.get('metrics_retention_days', 90)
+        current_cleanup_frequency = st.session_state.get('cleanup_frequency_percent', 1)
+        
+        st.write(f"- Daily metrics: {current_metrics_retention} days")
+        st.write(f"- Auto-cleanup frequency: {current_cleanup_frequency}% chance per visit")
+        st.write("- Summary stats: Permanent")
+        st.write("- Log files: 5MB + 10 backups (~50MB)")
+        
+        st.write("**⚙️ Configure Retention:**")
+        
+        # Metrics retention slider
+        new_metrics_retention = st.slider(
+            "Days to keep daily metrics",
+            min_value=7,
+            max_value=365,
+            value=current_metrics_retention,
+            step=7,
+            help="Number of days to keep daily visitor/page view breakdowns"
+        )
+        
+        # Cleanup frequency slider  
+        new_cleanup_frequency = st.slider(
+            "Auto-cleanup frequency (%)",
+            min_value=0,
+            max_value=10,
+            value=current_cleanup_frequency,
+            step=1,
+            help="Percentage chance of cleanup per visitor (0 = manual only)"
+        )
+        
+        # Apply settings button
+        if st.button("💾 Apply Retention Settings", help="Save new retention policy"):
+            st.session_state.metrics_retention_days = new_metrics_retention
+            st.session_state.cleanup_frequency_percent = new_cleanup_frequency
+            st.success(f"✅ Retention updated: {new_metrics_retention} days, {new_cleanup_frequency}% frequency")
+            logger.info(f"ADMIN_CONFIG | Retention policy updated: {new_metrics_retention} days, {new_cleanup_frequency}% frequency")
         
         st.write("**🔧 Manual Actions:**")
-        if st.button("🧹 Clean Old Metrics Now", help="Remove daily data older than 90 days"):
-            try:
-                metrics = get_metrics()
-                metrics.cleanup_old_data(days_to_keep=90)
-                st.success("✅ Metrics cleanup completed!")
-                logger.info("ADMIN_ACTION | Manual metrics cleanup triggered")
-            except Exception as e:
-                st.error(f"❌ Cleanup failed: {e}")
-                logger.error(f"ADMIN_ACTION | Manual cleanup failed: {e}")
+        
+        # Manual cleanup with custom retention
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🧹 Clean Old Metrics", help="Remove daily data older than configured days"):
+                try:
+                    retention_days = st.session_state.get('metrics_retention_days', 90)
+                    metrics = get_metrics()
+                    metrics.cleanup_old_data(days_to_keep=retention_days)
+                    st.success(f"✅ Cleaned data older than {retention_days} days!")
+                    logger.info(f"ADMIN_ACTION | Manual metrics cleanup: {retention_days} days")
+                except Exception as e:
+                    st.error(f"❌ Cleanup failed: {e}")
+                    logger.error(f"ADMIN_ACTION | Manual cleanup failed: {e}")
+        
+        with col2:
+            if st.button("🔄 Reset to Defaults", help="Reset retention to default values"):
+                st.session_state.metrics_retention_days = 90
+                st.session_state.cleanup_frequency_percent = 1
+                st.success("✅ Reset to defaults: 90 days, 1% frequency")
+                logger.info("ADMIN_CONFIG | Retention policy reset to defaults")
         
         # Show current storage info
         try:
             import os
             
+            st.write("**📁 Current Storage Usage:**")
+            
             # Check metrics file size
             metrics_file = "metrics/visitor_metrics.json"
             if os.path.exists(metrics_file):
                 metrics_size = os.path.getsize(metrics_file)
-                st.write(f"**📁 Current Storage:**")
                 st.write(f"- Metrics file: {metrics_size:,} bytes")
+            else:
+                st.write("- Metrics file: Not created yet")
             
             # Check log files size
             log_dir = "logs"
@@ -573,10 +619,45 @@ for the USGS Earthquake Monitor application.
                         total_log_size += os.path.getsize(file_path)
                         log_files += 1
                 
-                st.write(f"- Log files: {total_log_size:,} bytes ({log_files} files)")
+                if log_files > 0:
+                    st.write(f"- Log files: {total_log_size:,} bytes ({log_files} files)")
+                    
+                    # Show warning if approaching limits
+                    if total_log_size > 40 * 1024 * 1024:  # 40MB
+                        st.warning("⚠️ Log files approaching 50MB limit")
+                else:
+                    st.write("- Log files: No log files yet")
+            else:
+                st.write("- Log files: Logs directory not created")
+            
+            # Show metrics file age
+            if os.path.exists(metrics_file):
+                import time
+                file_age_days = (time.time() - os.path.getmtime(metrics_file)) / 86400
+                st.write(f"- Metrics file age: {file_age_days:.1f} days")
             
         except Exception as e:
             st.write(f"⚠️ Storage info unavailable: {e}")
+            
+        # Configuration export/import
+        st.write("**⚙️ Configuration Management:**")
+        
+        # Export current settings
+        import json
+        current_config = {
+            "metrics_retention_days": st.session_state.get('metrics_retention_days', 90),
+            "cleanup_frequency_percent": st.session_state.get('cleanup_frequency_percent', 1),
+            "export_timestamp": datetime.now().isoformat()
+        }
+        
+        config_json = json.dumps(current_config, indent=2)
+        st.download_button(
+            label="📋 Export Config",
+            data=config_json,
+            file_name=f"retention_config_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+            mime="application/json",
+            help="Download current retention configuration"
+        )
 
 
 # Configure Streamlit page
