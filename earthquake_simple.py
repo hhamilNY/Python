@@ -115,32 +115,51 @@ def main():
     st.title("🌍 USGS Earthquake Monitor")
     st.write("Real-time earthquake monitoring for mobile devices")
     
-    # Navigation
-    st.subheader("📡 Select Data Source")
+    # Select View dropdown
+    st.subheader("📡 Select View")
     
-    col1, col2 = st.columns(2)
+    feed_options = {
+        "🕐 Past Hour": "all_hour",
+        "� Past Day": "all_day", 
+        "🌍 Past Week": "all_week",
+        "� Past Month": "all_month",
+        "🌋 Major Quakes (4.5+ Week)": "4.5_week",
+        "⚠️ Significant Events (Month)": "significant_month",
+        "🔍 Magnitude 2.5+ (Week)": "2.5_week"
+    }
     
-    with col1:
-        if st.button("🕐 Past Hour"):
-            st.session_state.feed_type = "all_hour"
-        if st.button("📅 Past Day"):
-            st.session_state.feed_type = "all_day"
+    selected_view = st.selectbox(
+        "Choose earthquake data timeframe:",
+        options=list(feed_options.keys()),
+        index=0,
+        help="Select the time period and magnitude range for earthquake data"
+    )
     
-    with col2:
-        if st.button("🌍 Past Week"): 
-            st.session_state.feed_type = "all_week"
-        if st.button("🌋 Major Quakes"):
-            st.session_state.feed_type = "4.5_week"
+    # Get feed type from selection
+    feed_type = feed_options[selected_view]
     
-    # Initialize session state
-    if 'feed_type' not in st.session_state:
-        st.session_state.feed_type = "all_hour"
+    # Magnitude filter
+    st.subheader("🎛️ Filters")
+    min_magnitude = st.slider(
+        "Minimum Magnitude",
+        min_value=0.0,
+        max_value=7.0,
+        value=0.0,
+        step=0.1,
+        help="Filter earthquakes by minimum magnitude"
+    )
     
     # Fetch and display data
     with st.spinner("📡 Loading earthquake data..."):
-        earthquakes = fetch_earthquake_data(st.session_state.feed_type)
+        earthquakes = fetch_earthquake_data(feed_type)
+    
+    # Apply magnitude filter
+    if min_magnitude > 0.0:
+        earthquakes = [eq for eq in earthquakes if eq.get('magnitude', 0) >= min_magnitude]
     
     if earthquakes:
+        # Show current selection info
+        st.info(f"📊 Showing: **{selected_view}** | Minimum Magnitude: **M {min_magnitude}**")
         st.success(f"✅ Found {len(earthquakes)} earthquakes")
         
         show_stats(earthquakes)
