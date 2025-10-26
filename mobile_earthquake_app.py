@@ -158,6 +158,15 @@ def track_visitor():
     metrics = get_metrics()
     metrics.record_page_view(visitor_id)
     
+    # Periodic cleanup of old metrics data (run occasionally)
+    import random
+    if random.randint(1, 100) == 1:  # 1% chance each visit
+        try:
+            metrics.cleanup_old_data(days_to_keep=90)  # Keep 90 days of daily data
+            logger.info("METRICS_CLEANUP | Automatic cleanup completed")
+        except Exception as e:
+            logger.warning(f"METRICS_CLEANUP | Cleanup failed: {e}")
+    
     return visitor_id
 
 def get_visit_stats():
@@ -516,6 +525,58 @@ for the USGS Earthquake Monitor application.
             
         except Exception as e:
             st.write(f"⚠️ JSON export not available: {e}")
+    
+    # Add data retention policy information
+    with st.sidebar.expander("🗂️ Data Retention Policy", expanded=False):
+        st.write("**📊 Visitor Metrics:**")
+        st.write("- Summary stats: Permanent")
+        st.write("- Daily breakdowns: 90 days")
+        st.write("- Popular items: Permanent")
+        st.write("- Auto-cleanup: Random intervals")
+        
+        st.write("**📋 Log Files:**")
+        st.write("- Main log: 5MB max size")
+        st.write("- Backup logs: 10 files kept")
+        st.write("- Total storage: ~50MB")
+        st.write("- Auto-rotation: When size exceeded")
+        
+        st.write("**🔧 Manual Actions:**")
+        if st.button("🧹 Clean Old Metrics Now", help="Remove daily data older than 90 days"):
+            try:
+                metrics = get_metrics()
+                metrics.cleanup_old_data(days_to_keep=90)
+                st.success("✅ Metrics cleanup completed!")
+                logger.info("ADMIN_ACTION | Manual metrics cleanup triggered")
+            except Exception as e:
+                st.error(f"❌ Cleanup failed: {e}")
+                logger.error(f"ADMIN_ACTION | Manual cleanup failed: {e}")
+        
+        # Show current storage info
+        try:
+            import os
+            
+            # Check metrics file size
+            metrics_file = "metrics/visitor_metrics.json"
+            if os.path.exists(metrics_file):
+                metrics_size = os.path.getsize(metrics_file)
+                st.write(f"**📁 Current Storage:**")
+                st.write(f"- Metrics file: {metrics_size:,} bytes")
+            
+            # Check log files size
+            log_dir = "logs"
+            if os.path.exists(log_dir):
+                total_log_size = 0
+                log_files = 0
+                for file in os.listdir(log_dir):
+                    if file.endswith('.log'):
+                        file_path = os.path.join(log_dir, file)
+                        total_log_size += os.path.getsize(file_path)
+                        log_files += 1
+                
+                st.write(f"- Log files: {total_log_size:,} bytes ({log_files} files)")
+            
+        except Exception as e:
+            st.write(f"⚠️ Storage info unavailable: {e}")
 
 
 # Configure Streamlit page
