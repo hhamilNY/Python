@@ -380,6 +380,49 @@ def show_admin_dashboard():
             with st.sidebar.expander("⚠️ Recent Errors", expanded=False):
                 for error in analytics["errors"][-5:]:  # Show last 5 errors
                     st.write(f"🔴 {error[-100:]}")  # Truncate long errors
+    
+    # Add log viewer section
+    with st.sidebar.expander("📋 Recent Log Entries", expanded=False):
+        try:
+            log_file = os.path.join("logs", "earthquake_app.log")
+            if os.path.exists(log_file):
+                with open(log_file, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                    # Show last 20 lines
+                    recent_logs = lines[-20:] if len(lines) > 20 else lines
+                
+                st.write("**Last 20 log entries:**")
+                for line in recent_logs:
+                    st.text(line.strip())
+            else:
+                st.write("📄 No log file found yet")
+        except Exception as e:
+            st.write(f"❌ Error reading logs: {e}")
+    
+    # Add log download button
+    with st.sidebar.expander("📥 Download Logs", expanded=False):
+        try:
+            log_file = os.path.join("logs", "earthquake_app.log")
+            if os.path.exists(log_file):
+                with open(log_file, 'r', encoding='utf-8') as f:
+                    log_content = f.read()
+                
+                st.download_button(
+                    label="📥 Download Full Log File",
+                    data=log_content,
+                    file_name=f"earthquake_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                    mime="text/plain",
+                    help="Download complete log file to your computer"
+                )
+                
+                # Show file size and entry count
+                log_size = len(log_content.encode('utf-8'))
+                log_lines = len(log_content.splitlines())
+                st.write(f"📊 Log file: {log_lines} entries, {log_size:,} bytes")
+            else:
+                st.write("📄 No log file available for download")
+        except Exception as e:
+            st.write(f"❌ Error preparing download: {e}")
 
 
 # Configure Streamlit page
