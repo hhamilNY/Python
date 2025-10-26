@@ -24,7 +24,11 @@ class AppConfig:
                 "metrics_retention_days": 90,
                 "cleanup_frequency_percent": 1,
                 "log_max_size_mb": 5,
-                "log_backup_count": 10
+                "log_backup_count": 10,
+                "user_data_retention_days": 180,
+                "user_log_backup_count": 20,
+                "session_retention_days": 120,
+                "security_log_retention_days": 365
             },
             "app_settings": {
                 "default_feed_type": "all_hour",
@@ -42,8 +46,6 @@ class AppConfig:
                 "ip_logging_enabled": True,
                 "device_fingerprinting_enabled": True,
                 "security_monitoring_enabled": True,
-                "session_retention_days": 90,
-                "security_log_retention_days": 365,
                 "gdpr_compliance_mode": False,
                 "hash_ip_addresses": False
             },
@@ -150,11 +152,17 @@ class AppConfig:
                 "metrics_retention_days": self.get("retention_policy.metrics_retention_days", 90),
                 "cleanup_frequency_percent": self.get("retention_policy.cleanup_frequency_percent", 1),
                 "log_max_size_mb": self.get("retention_policy.log_max_size_mb", 5),
-                "log_backup_count": self.get("retention_policy.log_backup_count", 10)
+                "log_backup_count": self.get("retention_policy.log_backup_count", 10),
+                "user_data_retention_days": self.get("retention_policy.user_data_retention_days", 180),
+                "user_log_backup_count": self.get("retention_policy.user_log_backup_count", 20),
+                "session_retention_days": self.get("retention_policy.session_retention_days", 120),
+                "security_log_retention_days": self.get("retention_policy.security_log_retention_days", 365)
             }
     
-    def update_retention_config(self, metrics_days=None, cleanup_frequency=None, log_size_mb=None, log_backup_count=None):
-        """Update retention policy configuration"""
+    def update_retention_config(self, metrics_days=None, cleanup_frequency=None, log_size_mb=None, 
+                               log_backup_count=None, user_data_days=None, user_log_backups=None,
+                               session_days=None, security_log_days=None):
+        """Update retention policy configuration with enhanced user data settings"""
         with self.lock:
             try:
                 if metrics_days is not None:
@@ -165,6 +173,21 @@ class AppConfig:
                 
                 if log_size_mb is not None:
                     self.set("retention_policy.log_max_size_mb", log_size_mb)
+                
+                if log_backup_count is not None:
+                    self.set("retention_policy.log_backup_count", log_backup_count)
+                
+                if user_data_days is not None:
+                    self.set("retention_policy.user_data_retention_days", user_data_days)
+                
+                if user_log_backups is not None:
+                    self.set("retention_policy.user_log_backup_count", user_log_backups)
+                
+                if session_days is not None:
+                    self.set("retention_policy.session_retention_days", session_days)
+                
+                if security_log_days is not None:
+                    self.set("retention_policy.security_log_retention_days", security_log_days)
                 
                 if log_backup_count is not None:
                     self.set("retention_policy.log_backup_count", log_backup_count)

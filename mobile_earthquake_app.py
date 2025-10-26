@@ -169,10 +169,11 @@ def track_visitor():
             )
             st.session_state.session_id = session_id
             
-            # Log enhanced session info
+            # Log enhanced session info with state for US users
             location = session_data['location']
+            location_str = location.get('location_string', f"{location['city']}, {location['country']}")
             logger.info(f"NEW_ENHANCED_SESSION | ID: {session_id} | Visitor: {visitor_id} | "
-                       f"Location: {location['city']}, {location['country']} | "
+                       f"Location: {location_str} | "
                        f"IP: {session_data['ip_address']} | Device: {session_data['device_id']}")
             
         except Exception as e:
@@ -200,20 +201,22 @@ def track_visitor():
     except Exception as e:
         logger.warning(f"METRICS_ERROR | Failed to record in existing metrics: {e}")
     
-    # Periodic cleanup of old data (run occasionally)
+    # Periodic cleanup of old data with enhanced retention policies
     import random
     app_config = get_app_config()
     cleanup_frequency = app_config.get("retention_policy.cleanup_frequency_percent", 1)
     
     if cleanup_frequency > 0 and random.randint(1, 100) <= cleanup_frequency:
         try:
-            retention_days = app_config.get("retention_policy.metrics_retention_days", 90)
+            # Use different retention for different data types
+            metrics_retention_days = app_config.get("retention_policy.metrics_retention_days", 90)
+            session_retention_days = app_config.get("retention_policy.session_retention_days", 120)
             
-            # Cleanup both systems
-            metrics.cleanup_old_data(days_to_keep=retention_days)
-            session_manager.cleanup_old_sessions(days_to_keep=retention_days)
+            # Cleanup both systems with appropriate retention
+            metrics.cleanup_old_data(days_to_keep=metrics_retention_days)
+            session_manager.cleanup_old_sessions(days_to_keep=session_retention_days)
             
-            logger.info(f"ENHANCED_CLEANUP | Automatic cleanup completed: {retention_days} days retention, {cleanup_frequency}% frequency")
+            logger.info(f"ENHANCED_CLEANUP | Automatic cleanup completed: {metrics_retention_days} days metrics, {session_retention_days} days sessions, {cleanup_frequency}% frequency")
         except Exception as e:
             logger.warning(f"ENHANCED_CLEANUP | Cleanup failed: {e}")
     
@@ -586,69 +589,121 @@ for the USGS Earthquake Monitor application.
         st.write(f"- Daily metrics: {retention_config['metrics_retention_days']} days")
         st.write(f"- Auto-cleanup frequency: {retention_config['cleanup_frequency_percent']}% chance per visit")
         st.write("- Summary stats: Permanent")
-        st.write(f"- Log files: {retention_config['log_max_size_mb']}MB + {retention_config['log_backup_count']} backups")
+        st.write(f"- App log files: {retention_config['log_max_size_mb']}MB + {retention_config['log_backup_count']} backups")
+        st.write(f"- User data: {retention_config['user_data_retention_days']} days")
+        st.write(f"- User session logs: {retention_config['user_log_backup_count']} backup files")
+        st.write(f"- Session data: {retention_config['session_retention_days']} days")
+        st.write(f"- Security logs: {retention_config['security_log_retention_days']} days")
         
         st.write("**⚙️ Configure Retention:**")
         
-        # Metrics retention slider
-        new_metrics_retention = st.slider(
-            "Days to keep daily metrics",
-            min_value=7,
-            max_value=365,
-            value=retention_config['metrics_retention_days'],
-            step=7,
-            help="Number of days to keep daily visitor/page view breakdowns"
-        )
+        # Basic metrics settings
+        st.write("**📈 Basic Analytics:**")
+        col1, col2 = st.columns(2)
+        with col1:
+            new_metrics_retention = st.slider(
+                "Days to keep daily metrics",
+                min_value=7,
+                max_value=365,
+                value=retention_config['metrics_retention_days'],
+                step=7,
+                help="Number of days to keep daily visitor/page view breakdowns"
+            )
         
-        # Cleanup frequency slider  
-        new_cleanup_frequency = st.slider(
-            "Auto-cleanup frequency (%)",
-            min_value=0,
-            max_value=10,
-            value=retention_config['cleanup_frequency_percent'],
-            step=1,
-            help="Percentage chance of cleanup per visitor (0 = manual only)"
-        )
+        with col2:
+            new_cleanup_frequency = st.slider(
+                "Auto-cleanup frequency (%)",
+                min_value=0,
+                max_value=10,
+                value=retention_config['cleanup_frequency_percent'],
+                step=1,
+                help="Percentage chance of cleanup per visitor (0 = manual only)"
+            )
         
-        # Log file settings
+        # Application log settings
+        st.write("**📋 Application Logs:**")
         col1, col2 = st.columns(2)
         with col1:
             new_log_size = st.number_input(
-                "Log file size (MB)",
+                "App log file size (MB)",
                 min_value=1,
                 max_value=50,
                 value=retention_config['log_max_size_mb'],
-                help="Maximum size of each log file"
+                help="Maximum size of each application log file"
             )
         
         with col2:
             new_log_backup_count = st.number_input(
-                "Log backup files",
+                "App log backup files",
                 min_value=1,
-                max_value=20,
+                max_value=30,
                 value=retention_config['log_backup_count'],
-                help="Number of backup log files to keep"
+                help="Number of backup application log files to keep"
+            )
+        
+        # Enhanced user data settings
+        st.write("**🔐 User Data & Sessions:**")
+        col1, col2 = st.columns(2)
+        with col1:
+            new_user_data_retention = st.number_input(
+                "User data retention (days)",
+                min_value=30,
+                max_value=730,
+                value=retention_config['user_data_retention_days'],
+                help="Number of days to keep detailed user session data"
+            )
+            
+            new_session_retention = st.number_input(
+                "Session retention (days)",
+                min_value=30,
+                max_value=365,
+                value=retention_config['session_retention_days'],
+                help="Number of days to keep active session records"
+            )
+        
+        with col2:
+            new_user_log_backups = st.number_input(
+                "User session log backups",
+                min_value=10,
+                max_value=50,
+                value=retention_config['user_log_backup_count'],
+                help="Number of user session log backup files to keep"
+            )
+            
+            new_security_log_retention = st.number_input(
+                "Security log retention (days)",
+                min_value=90,
+                max_value=1095,
+                value=retention_config['security_log_retention_days'],
+                help="Number of days to keep security event logs"
             )
         
         # Apply settings button
-        if st.button("💾 Apply Retention Settings", help="Save new retention policy to mobile_config.json"):
+        if st.button("💾 Apply Enhanced Retention Settings", help="Save new retention policy to mobile_config.json"):
             success = app_config.update_retention_config(
                 metrics_days=new_metrics_retention,
                 cleanup_frequency=new_cleanup_frequency,
                 log_size_mb=new_log_size,
-                log_backup_count=new_log_backup_count
+                log_backup_count=new_log_backup_count,
+                user_data_days=new_user_data_retention,
+                user_log_backups=new_user_log_backups,
+                session_days=new_session_retention,
+                security_log_days=new_security_log_retention
             )
             
             if success:
-                st.success(f"✅ Retention saved to mobile_config.json!")
-                st.info(f"📋 Settings: {new_metrics_retention} days, {new_cleanup_frequency}% frequency, {new_log_size}MB logs")
-                logger.info(f"ADMIN_CONFIG | Retention policy updated in mobile_config.json")
+                st.success(f"✅ Enhanced retention policy saved to mobile_config.json!")
+                st.info(f"� Basic: {new_metrics_retention} days metrics, {new_cleanup_frequency}% frequency")
+                st.info(f"📋 App logs: {new_log_size}MB files, {new_log_backup_count} backups")
+                st.info(f"🔐 User data: {new_user_data_retention} days, {new_user_log_backups} session log backups")
+                st.info(f"🛡️ Security: {new_security_log_retention} days security logs")
+                logger.info(f"ADMIN_CONFIG | Enhanced retention policy updated in mobile_config.json")
             else:
                 st.error("❌ Failed to save configuration")
         
         st.write("**🔧 Manual Actions:**")
         
-        # Manual cleanup with current retention
+        # Enhanced manual cleanup with different retention policies
         col1, col2 = st.columns(2)
         with col1:
             if st.button("🧹 Clean Old Metrics", help="Remove daily data older than configured days"):
@@ -656,39 +711,68 @@ for the USGS Earthquake Monitor application.
                     current_retention = app_config.get("retention_policy.metrics_retention_days", 90)
                     metrics = get_metrics()
                     metrics.cleanup_old_data(days_to_keep=current_retention)
-                    st.success(f"✅ Cleaned data older than {current_retention} days!")
+                    st.success(f"✅ Cleaned metrics data older than {current_retention} days!")
                     logger.info(f"ADMIN_ACTION | Manual metrics cleanup: {current_retention} days")
                 except Exception as e:
-                    st.error(f"❌ Cleanup failed: {e}")
-                    logger.error(f"ADMIN_ACTION | Manual cleanup failed: {e}")
+                    st.error(f"❌ Metrics cleanup failed: {e}")
+                    logger.error(f"ADMIN_ACTION | Manual metrics cleanup failed: {e}")
+            
+            if st.button("🔐 Clean Old Sessions", help="Remove session data older than configured days"):
+                try:
+                    session_retention = app_config.get("retention_policy.session_retention_days", 120)
+                    session_manager = get_session_manager()
+                    session_manager.cleanup_old_sessions(days_to_keep=session_retention)
+                    st.success(f"✅ Cleaned session data older than {session_retention} days!")
+                    logger.info(f"ADMIN_ACTION | Manual session cleanup: {session_retention} days")
+                except Exception as e:
+                    st.error(f"❌ Session cleanup failed: {e}")
+                    logger.error(f"ADMIN_ACTION | Manual session cleanup failed: {e}")
         
         with col2:
             if st.button("🔄 Reset to Defaults", help="Reset all settings to default values"):
                 success = app_config.reset_to_defaults()
                 if success:
-                    st.success("✅ Reset to defaults in mobile_config.json!")
-                    logger.info("ADMIN_CONFIG | Configuration reset to defaults")
+                    st.success("✅ Reset to enhanced defaults in mobile_config.json!")
+                    logger.info("ADMIN_CONFIG | Configuration reset to enhanced defaults")
                     st.rerun()  # Refresh to show new values
                 else:
                     st.error("❌ Failed to reset configuration")
+            
+            if st.button("🛡️ Clean Security Logs", help="Remove old security events"):
+                try:
+                    security_retention = app_config.get("retention_policy.security_log_retention_days", 365)
+                    session_manager = get_session_manager()
+                    # This would need a new method in session manager for security cleanup
+                    st.info(f"🔍 Security logs retention: {security_retention} days")
+                    logger.info(f"ADMIN_ACTION | Security log retention check: {security_retention} days")
+                except Exception as e:
+                    st.error(f"❌ Security log check failed: {e}")
         
         # Show current storage info
         try:
             import os
             
-            st.write("**📁 Current Storage Usage:**")
+            st.write("**📁 Enhanced Storage Usage:**")
             
-            # Check metrics file size
+            # Basic metrics file
             metrics_file = "metrics/visitor_metrics.json"
             if os.path.exists(metrics_file):
                 metrics_size = os.path.getsize(metrics_file)
-                st.write(f"- Metrics file: {metrics_size:,} bytes")
+                st.write(f"- 📊 Basic metrics: {metrics_size:,} bytes")
             else:
-                st.write("- Metrics file: Not created yet")
+                st.write("- 📊 Basic metrics: Not created yet")
             
-            # Check config file size
+            # Enhanced session data
+            sessions_file = "sessions/user_sessions.json"
+            if os.path.exists(sessions_file):
+                sessions_size = os.path.getsize(sessions_file)
+                st.write(f"- 🔐 User sessions: {sessions_size:,} bytes")
+            else:
+                st.write("- 🔐 User sessions: Not created yet")
+            
+            # Config file
             config_summary = app_config.get_config_summary()
-            st.write(f"- Config file: {config_summary['file_size']:,} bytes")
+            st.write(f"- ⚙️ Configuration: {config_summary['file_size']:,} bytes")
             
             # Check log files size
             log_dir = "logs"
@@ -784,6 +868,16 @@ for the USGS Earthquake Monitor application.
                 st.metric("Unique Locations", analytics['unique_locations'])
                 st.metric("Unique Devices", analytics['unique_devices'])
                 st.metric("Security Events", analytics['security_events'])
+            
+            # US States tracking if available
+            if 'us_states_visited' in analytics and analytics['us_states_visited'] > 0:
+                st.write("**🇺🇸 US States Analytics:**")
+                st.info(f"📍 Accessed from {analytics['us_states_visited']} US states")
+                
+                # Show list of states
+                if 'us_states_list' in analytics and analytics['us_states_list']:
+                    states_text = ", ".join(sorted(analytics['us_states_list']))
+                    st.write(f"**States visited:** {states_text}")
             
             # Security status
             if security['recent_events_30_days'] > 0:

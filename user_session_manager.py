@@ -41,6 +41,7 @@ class UserSessionManager:
                 "total_logins": 0,
                 "unique_locations": set(),
                 "unique_devices": set(),
+                "us_states_visited": set(),
                 "suspicious_activities": 0
             },
             "metadata": {
@@ -62,6 +63,10 @@ class UserSessionManager:
                         analytics['unique_locations'] = set(analytics['unique_locations'])
                     if 'unique_devices' in analytics:
                         analytics['unique_devices'] = set(analytics['unique_devices'])
+                    if 'us_states_visited' in analytics:
+                        analytics['us_states_visited'] = set(analytics['us_states_visited'])
+                    else:
+                        analytics['us_states_visited'] = set()
                 
                 # Merge with defaults for missing keys
                 for key, value in default_data.items():
@@ -87,6 +92,8 @@ class UserSessionManager:
                     analytics['unique_locations'] = list(analytics['unique_locations'])
                 if 'unique_devices' in analytics:
                     analytics['unique_devices'] = list(analytics['unique_devices'])
+                if 'us_states_visited' in analytics:
+                    analytics['us_states_visited'] = list(analytics['us_states_visited'])
             
             data['metadata']['last_updated'] = datetime.now().isoformat()
             
@@ -117,12 +124,13 @@ class UserSessionManager:
         return request_headers.get('Remote-Addr', 'unknown')
     
     def _get_location_from_ip(self, ip_address):
-        """Get location information from IP address using free IP geolocation API"""
+        """Get location information from IP address using free IP geolocation API with enhanced US state tracking"""
         try:
             if ip_address in ['127.0.0.1', 'localhost', 'unknown']:
                 return {
                     'country': 'Local',
                     'region': 'Local',
+                    'state': 'Local',
                     'city': 'Local',
                     'timezone': 'Local',
                     'isp': 'Local'
@@ -133,24 +141,55 @@ class UserSessionManager:
             if response.status_code == 200:
                 data = response.json()
                 if data['status'] == 'success':
-                    return {
-                        'country': data.get('country', 'Unknown'),
-                        'region': data.get('regionName', 'Unknown'),
+                    country = data.get('country', 'Unknown')
+                    region = data.get('regionName', 'Unknown')
+                    
+                    # Enhanced location data with state info for US users
+                    location_data = {
+                        'country': country,
+                        'region': region,
                         'city': data.get('city', 'Unknown'),
                         'timezone': data.get('timezone', 'Unknown'),
                         'isp': data.get('isp', 'Unknown'),
                         'latitude': data.get('lat'),
                         'longitude': data.get('lon')
                     }
+                    
+                    # Add state information for United States users
+                    if country == 'United States':
+                        # For US, the regionName is typically the full state name
+                        location_data['state'] = region
+                        location_data['state_code'] = data.get('region', 'Unknown')  # 2-letter state code
+                        
+                        # Create enhanced location string for US users
+                        if location_data['city'] != 'Unknown' and location_data['state'] != 'Unknown':
+                            location_data['location_string'] = f"{location_data['city']}, {location_data['state']}, USA"
+                        else:
+                            location_data['location_string'] = f"{location_data['state']}, USA"
+                    else:
+                        # For non-US users, use region as provided
+                        location_data['state'] = None
+                        location_data['state_code'] = None
+                        
+                        # Create location string for international users
+                        if location_data['city'] != 'Unknown' and location_data['region'] != 'Unknown':
+                            location_data['location_string'] = f"{location_data['city']}, {location_data['region']}, {country}"
+                        else:
+                            location_data['location_string'] = f"{location_data['region']}, {country}"
+                    
+                    return location_data
         except Exception as e:
             logging.warning(f"LOCATION_ERROR | Failed to get location for IP {ip_address}: {e}")
         
         return {
             'country': 'Unknown',
-            'region': 'Unknown', 
+            'region': 'Unknown',
+            'state': None,
+            'state_code': None,
             'city': 'Unknown',
             'timezone': 'Unknown',
-            'isp': 'Unknown'
+            'isp': 'Unknown',
+            'location_string': 'Unknown Location'
         }
     
     def _create_device_fingerprint(self, user_agent, screen_resolution=None, timezone=None):
@@ -218,11 +257,20 @@ class UserSessionManager:
             }
             self.sessions['login_history'].append(login_record)
             
-            # Update analytics
+            # Update analytics with enhanced location tracking
             analytics = self.sessions['session_analytics']
             analytics['total_logins'] += 1
-            analytics['unique_locations'].add(f"{location_info['city']}, {location_info['country']}")
+            
+            # Use enhanced location string for better US state tracking
+            location_string = location_info.get('location_string', f"{location_info['city']}, {location_info['country']}")
+            analytics['unique_locations'].add(location_string)
             analytics['unique_devices'].add(device_id)
+            
+            # Add US state tracking if applicable
+            if location_info.get('state') and location_info['country'] == 'United States':
+                if 'us_states_visited' not in analytics:
+                    analytics['us_states_visited'] = set()
+                analytics['us_states_visited'].add(location_info['state'])
             
             # Store device fingerprint if new
             if device_id not in self.sessions['device_fingerprints']:
@@ -239,8 +287,8 @@ class UserSessionManager:
                 device_record['session_count'] += 1
                 
                 # Check for multiple locations (potential security concern)
-                current_location = f"{location_info['city']}, {location_info['country']}"
-                existing_locations = [f"{loc['city']}, {loc['country']}" for loc in device_record['locations_used']]
+                current_location = location_info.get('location_string', f"{location_info['city']}, {location_info['country']}")
+                existing_locations = [loc.get('location_string', f"{loc['city']}, {loc['country']}") for loc in device_record['locations_used']]
                 
                 if current_location not in existing_locations:
                     device_record['locations_used'].append(location_info)
@@ -373,25 +421,36 @@ class UserSessionManager:
             }
     
     def get_analytics_summary(self):
-        """Get comprehensive analytics summary"""
+        """Get comprehensive analytics summary with enhanced US state tracking"""
         with self.lock:
             active_sessions_count = len(self.active_sessions)
             total_sessions = len(self.sessions['user_sessions'])
+            analytics = self.sessions['session_analytics']
             
             # Calculate average session duration
             durations = [s['duration_minutes'] for s in self.sessions['user_sessions'].values() 
                         if 'duration_minutes' in s and s['duration_minutes'] > 0]
             avg_duration = sum(durations) / len(durations) if durations else 0
             
-            return {
+            # Count US states if available
+            us_states_count = len(analytics.get('us_states_visited', set()))
+            
+            summary = {
                 'total_sessions': total_sessions,
                 'active_sessions': active_sessions_count,
-                'total_logins': self.sessions['session_analytics']['total_logins'],
-                'unique_locations': len(self.sessions['session_analytics']['unique_locations']),
-                'unique_devices': len(self.sessions['session_analytics']['unique_devices']),
+                'total_logins': analytics['total_logins'],
+                'unique_locations': len(analytics['unique_locations']),
+                'unique_devices': len(analytics['unique_devices']),
                 'average_session_duration_minutes': round(avg_duration, 2),
                 'security_events': len(self.sessions['security_events'])
             }
+            
+            # Add US-specific analytics if we have US users
+            if us_states_count > 0:
+                summary['us_states_visited'] = us_states_count
+                summary['us_states_list'] = list(analytics.get('us_states_visited', set()))
+            
+            return summary
     
     def cleanup_old_sessions(self, days_to_keep=90):
         """Clean up old session data"""
@@ -441,6 +500,8 @@ class UserSessionManager:
                         analytics['unique_locations'] = list(analytics['unique_locations'])
                     if 'unique_devices' in analytics:
                         analytics['unique_devices'] = list(analytics['unique_devices'])
+                    if 'us_states_visited' in analytics:
+                        analytics['us_states_visited'] = list(analytics['us_states_visited'])
                 
                 export_data['export_timestamp'] = datetime.now().isoformat()
                 
