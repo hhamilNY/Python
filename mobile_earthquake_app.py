@@ -1386,12 +1386,41 @@ def main():
     view modes including overview, map, list, statistics, and regional analysis.
     All interactions are logged for analytics and debugging purposes.
     """
-    # Check for admin dashboard access via URL parameter
+    # Check for admin dashboard access via URL parameter with multiple methods
+    show_admin = False
+    
     try:
-        query_params = st.query_params if hasattr(st, 'query_params') else {}
-        show_admin = query_params.get('admin') == 'true'
-    except:
+        # Method 1: Try st.query_params (newer Streamlit versions)
+        if hasattr(st, 'query_params'):
+            query_params = st.query_params
+            show_admin = query_params.get('admin') == 'true'
+        
+        # Method 2: Try st.experimental_get_query_params (older versions)
+        elif hasattr(st, 'experimental_get_query_params'):
+            query_params = st.experimental_get_query_params()
+            show_admin = query_params.get('admin', [''])[0] == 'true'
+        
+        # Method 3: Check browser URL directly (most compatible)
+        else:
+            # This will work in most Streamlit environments
+            import urllib.parse
+            # Get URL from browser if available
+            if 'admin=true' in str(st.session_state.get('_current_url', '')):
+                show_admin = True
+        
+        # Debug: Show admin status for testing
+        if show_admin:
+            st.info("🔧 **Admin Mode Activated** - Analytics dashboard is shown in the sidebar")
+            
+    except Exception as e:
         show_admin = False
+        logger.warning(f"ADMIN_ACCESS | URL parameter check failed: {e}")
+    
+    # Fallback: Add a secret button for admin access if URL method fails
+    if not show_admin:
+        if st.sidebar.button("🔧 Admin Dashboard", help="Click to show analytics"):
+            show_admin = True
+            st.info("🔧 **Admin Mode Activated via Button** - Analytics dashboard shown below")
     
     # Track visitor (must be called early)
     visitor_id = track_visitor()
@@ -1605,12 +1634,13 @@ def main():
                 st.session_state.feed_type = "all_week"
                 st.rerun()
     
-    # Mobile-friendly footer
+    # Mobile-friendly footer with admin access info
     st.markdown("""
     <div style="text-align: center; padding: 2rem 0; color: #555; border-top: 1px solid #eee; margin-top: 2rem;">
         <small style="color: #666;">
         📡 Data from USGS Earthquake Hazards Program<br>
-        🔄 Updates every 5 minutes | 📱 Optimized for mobile devices
+        🔄 Updates every 5 minutes | 📱 Optimized for mobile devices<br>
+        🔧 Admin access: Add <code>?admin=true</code> to URL or use sidebar button
         </small>
     </div>
     """, unsafe_allow_html=True)
