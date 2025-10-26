@@ -54,7 +54,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 @st.cache_data(ttl=300)
-def fetch_earthquake_data(feed_type="all_hour"):
+def fetch_earthquake_data(feed_type="all_hour", region="usa"):
     """Fetch earthquake data from USGS"""
     url = f"https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/{feed_type}.geojson"
     
@@ -68,9 +68,35 @@ def fetch_earthquake_data(feed_type="all_hour"):
             props = feature['properties']
             coords = feature['geometry']['coordinates']
             
-            # Filter for USA earthquakes
             longitude, latitude = coords[0], coords[1]
-            if -180 <= longitude <= -60 and 15 <= latitude <= 75:
+            
+            # Regional filtering
+            include_earthquake = False
+            if region == "usa":
+                # USA and territories
+                if -180 <= longitude <= -60 and 15 <= latitude <= 75:
+                    include_earthquake = True
+            elif region == "california":
+                # California region
+                if -125 <= longitude <= -114 and 32 <= latitude <= 42:
+                    include_earthquake = True
+            elif region == "alaska":
+                # Alaska region
+                if -180 <= longitude <= -130 and 54 <= latitude <= 72:
+                    include_earthquake = True
+            elif region == "pacific":
+                # Pacific Ring of Fire
+                if -180 <= longitude <= -110 and -60 <= latitude <= 60:
+                    include_earthquake = True
+            elif region == "global":
+                # Global earthquakes
+                include_earthquake = True
+            elif region == "west_coast":
+                # US West Coast
+                if -130 <= longitude <= -115 and 30 <= latitude <= 50:
+                    include_earthquake = True
+            
+            if include_earthquake:
                 earthquakes.append({
                     'magnitude': props.get('mag', 0),
                     'place': props.get('place', 'Unknown'),
@@ -85,7 +111,7 @@ def fetch_earthquake_data(feed_type="all_hour"):
         st.error(f"Error fetching data: {e}")
         return []
 
-def create_map(earthquakes):
+def create_map(earthquakes, region="usa"):
     """Create earthquake map"""
     if not earthquakes:
         return
@@ -96,6 +122,18 @@ def create_map(earthquakes):
     
     df = pd.DataFrame(valid_earthquakes)
     
+    # Set zoom and center based on region
+    zoom_settings = {
+        "usa": {"zoom": 3, "center": {"lat": 39.8, "lon": -98.5}},
+        "california": {"zoom": 6, "center": {"lat": 36.7, "lon": -119.7}},
+        "alaska": {"zoom": 4, "center": {"lat": 64.0, "lon": -153.0}},
+        "west_coast": {"zoom": 5, "center": {"lat": 40.0, "lon": -122.0}},
+        "pacific": {"zoom": 2, "center": {"lat": 0.0, "lon": -140.0}},
+        "global": {"zoom": 1, "center": {"lat": 0.0, "lon": 0.0}}
+    }
+    
+    zoom_config = zoom_settings.get(region, zoom_settings["usa"])
+    
     fig = px.scatter_map(
         df,
         lat="latitude",
@@ -104,9 +142,10 @@ def create_map(earthquakes):
         color="magnitude",
         hover_name="place",
         color_continuous_scale="Reds",
-        zoom=3,
+        zoom=zoom_config["zoom"],
+        center=zoom_config["center"],
         height=400,
-        title="🗺️ US Earthquake Activity"
+        title=f"🗺️ Earthquake Activity - {region.replace('_', ' ').title()}"
     )
     
     fig.update_layout(
@@ -188,6 +227,24 @@ def main():
             step=0.1,
             help="Filter earthquakes by minimum magnitude"
         )
+        
+        region_options = {
+            "🇺🇸 USA": "usa",
+            "🌴 California": "california", 
+            "❄️ Alaska": "alaska",
+            "🌊 US West Coast": "west_coast",
+            "🌋 Pacific Ring": "pacific",
+            "🌍 Global": "global"
+        }
+        
+        selected_region = st.selectbox(
+            "Region",
+            options=list(region_options.keys()),
+            index=0,
+            help="Select geographic region to monitor"
+        )
+        
+        region = region_options[selected_region]
     
     with col2:
         show_recent = st.checkbox("Show Recent List", value=True, help="Display list of recent earthquakes")
@@ -195,7 +252,7 @@ def main():
     
     # Fetch and display data
     with st.spinner("📡 Loading earthquake data..."):
-        earthquakes = fetch_earthquake_data(feed_type)
+        earthquakes = fetch_earthquake_data(feed_type, region)
     
     # Apply magnitude filter
     if min_magnitude > 0.0:
@@ -213,13 +270,13 @@ def main():
         }
         
         selected_name = current_selection.get(feed_type, "Unknown")
-        st.info(f"📊 Showing: **{selected_name}** | Minimum Magnitude: **M {min_magnitude}**")
+        st.info(f"📊 **{selected_name}** | 🌍 **{selected_region}** | Min Magnitude: **M {min_magnitude}**")
         st.success(f"✅ Found {len(earthquakes)} earthquakes")
         
         show_stats(earthquakes)
         
         if show_map:
-            create_map(earthquakes)
+            create_map(earthquakes, region)
         
         # Show recent earthquakes
         if show_recent:
