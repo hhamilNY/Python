@@ -14,14 +14,42 @@ import numpy as np
 st.set_page_config(
     page_title="🌍 USGS Earthquake Monitor", 
     page_icon="🌍",
-    layout="wide"
+    layout="centered",
+    initial_sidebar_state="collapsed"
 )
 
 # CSS styling
 st.markdown("""
 <style>
-    .main > div { padding-top: 1rem; }
-    .stButton > button { width: 100%; }
+    .main > div { 
+        padding-top: 1rem; 
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    .stButton > button { 
+        width: 100%; 
+    }
+    .element-container {
+        margin: 0 auto;
+    }
+    .stSelectbox > div > div {
+        margin: 0 auto;
+    }
+    .stSlider > div {
+        margin: 0 auto;
+    }
+    .block-container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    .stMetric {
+        text-align: center;
+    }
+    h1, h2, h3 {
+        text-align: center;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -112,11 +140,14 @@ def show_stats(earthquakes):
 
 def main():
     """Main application"""
-    st.title("🌍 USGS Earthquake Monitor")
-    st.write("Real-time earthquake monitoring for mobile devices")
+    # Centered title with better styling
+    st.markdown("<h1 style='text-align: center; color: #1f77b4;'>🌍 USGS Earthquake Monitor</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; font-size: 18px; color: #666;'>Real-time earthquake monitoring for mobile devices</p>", unsafe_allow_html=True)
+    
+    st.markdown("---")
     
     # Select View dropdown
-    st.subheader("📡 Select View")
+    st.markdown("<h3 style='text-align: center;'>📡 Select View</h3>", unsafe_allow_html=True)
     
     feed_options = {
         "🕐 Past Hour": "all_hour",
@@ -139,7 +170,7 @@ def main():
     feed_type = feed_options[selected_view]
     
     # Magnitude filter
-    st.subheader("🎛️ Filters")
+    st.markdown("<h3 style='text-align: center;'>🎛️ Filters</h3>", unsafe_allow_html=True)
     min_magnitude = st.slider(
         "Minimum Magnitude",
         min_value=0.0,
@@ -166,7 +197,7 @@ def main():
         create_map(earthquakes)
         
         # Show recent earthquakes
-        st.subheader("📋 Recent Earthquakes")
+        st.markdown("<h3 style='text-align: center;'>📋 Recent Earthquakes</h3>", unsafe_allow_html=True)
         valid_earthquakes = [eq for eq in earthquakes if eq['magnitude'] > 0]
         
         for eq in sorted(valid_earthquakes, key=lambda x: x['magnitude'], reverse=True)[:5]:
@@ -182,7 +213,7 @@ def main():
     
     # Footer
     st.markdown("---")
-    st.markdown("📡 Data from USGS Earthquake Hazards Program")
+    st.markdown("<p style='text-align: center; color: #888;'>📡 Data from USGS Earthquake Hazards Program</p>", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
