@@ -1,5 +1,5 @@
 """
-Advanced USGS Earthquake Monitor - Complete Mobile Web App
+Real-Time Earthquake Monitoring - Complete Mobile Web App
 All modular features combined into single deployable file
 """
 
@@ -115,6 +115,14 @@ def fetch_earthquake_data(feed_type="all_hour", region="usa"):
             elif region == "alaska":
                 if -180 <= longitude <= -130 and 54 <= latitude <= 72:
                     include_earthquake = True
+            elif region == "nevada":
+                # Nevada region
+                if -120 <= longitude <= -114 and 35 <= latitude <= 42:
+                    include_earthquake = True
+            elif region == "hawaii":
+                # Hawaii region  
+                if -162 <= longitude <= -154 and 18 <= latitude <= 23:
+                    include_earthquake = True
             elif region == "pacific":
                 if -180 <= longitude <= -110 and -60 <= latitude <= 60:
                     include_earthquake = True
@@ -190,6 +198,8 @@ def create_advanced_map(earthquakes, region="usa"):
         "usa": {"zoom": 3, "center": {"lat": 39.8, "lon": -98.5}},
         "california": {"zoom": 6, "center": {"lat": 36.7, "lon": -119.7}},
         "alaska": {"zoom": 4, "center": {"lat": 64.0, "lon": -153.0}},
+        "nevada": {"zoom": 7, "center": {"lat": 38.5, "lon": -117.0}},
+        "hawaii": {"zoom": 7, "center": {"lat": 20.0, "lon": -157.0}},
         "west_coast": {"zoom": 6, "center": {"lat": 45.5, "lon": -121.0}},
         "east_mississippi": {"zoom": 5, "center": {"lat": 37.5, "lon": -77.5}},
         "texas": {"zoom": 6, "center": {"lat": 31.0, "lon": -100.0}},
@@ -280,18 +290,37 @@ def show_advanced_stats(earthquakes, region="USA"):
         significant = len([m for m in magnitudes if m >= 4.0])
         st.metric("⚠️ Significant", significant)
     
-    # Magnitude Distribution Chart
-    st.markdown("<h4 style='text-align: center;'>📈 Magnitude Distribution</h4>", unsafe_allow_html=True)
+    # Regional Activity Comparison
+    st.markdown("<h4 style='text-align: center;'>🌍 Regional Activity Comparison</h4>", unsafe_allow_html=True)
     
-    fig_hist = px.histogram(
-        x=magnitudes,
-        nbins=20,
-        title="Earthquake Magnitude Distribution",
-        labels={"x": "Magnitude", "y": "Count"},
-        color_discrete_sequence=["#e74c3c"]
-    )
-    fig_hist.update_layout(height=300, margin=dict(l=0, r=0, t=40, b=0))
-    st.plotly_chart(fig_hist, use_container_width=True)
+    # Get regional data for comparison
+    try:
+        # Use the current feed type from session state or default
+        current_feed = getattr(st.session_state, 'feed_type', 'all_hour')
+        regional_data = create_regional_comparison_chart(current_feed, 0.0)
+        
+        if regional_data:
+            regions = [data['region'] for data in regional_data]
+            counts = [data['count'] for data in regional_data]
+            
+            fig_regional = px.bar(
+                x=regions,
+                y=counts,
+                title="Earthquake Activity by Region",
+                labels={'x': 'Region', 'y': 'Number of Earthquakes'},
+                color=counts,
+                color_continuous_scale="Reds"
+            )
+            fig_regional.update_layout(
+                height=350,
+                xaxis_tickangle=-45,
+                margin=dict(l=0, r=0, t=40, b=0)
+            )
+            st.plotly_chart(fig_regional, use_container_width=True)
+        else:
+            st.warning("⚠️ Regional comparison data unavailable")
+    except Exception as e:
+        st.error(f"Error loading regional data: {e}")
     
     # Depth vs Magnitude Scatter
     col1, col2 = st.columns(2)
@@ -344,11 +373,11 @@ def create_regional_comparison_chart(feed_type, min_magnitude=0.0):
         "🇺🇸 United States of America": "usa",
         "🌴 California": "california", 
         "❄️ Alaska": "alaska",
+        "🎰 Nevada": "nevada",
         "🏔️ Northwest": "west_coast",
+        "🌺 Hawaii": "hawaii",
         "🏛️ East of Mississippi": "east_mississippi",
-        "🤠 Texas": "texas",
-        "🌋 Pacific Ring": "pacific",
-        "🌍 Global": "global"
+        "🤠 Texas": "texas"
     }
     
     regional_data = []
@@ -556,7 +585,7 @@ def show_admin_panel():
     
     with col2:
         st.info("📡 Data Cache: 5 minutes")
-        st.info("🌍 Regions: 6 available")
+        st.info("🌍 Regions: 8 available")
 
 def main():
     """Real-time earthquake monitoring application"""
@@ -569,6 +598,54 @@ def main():
         <p style='margin: 0; opacity: 0.8;'>Powered by USGS • Real-time Data • Global Coverage</p>
     </div>
     """, unsafe_allow_html=True)
+    
+    # Global Highest Magnitude Alert (24 hours)
+    with st.spinner("🔍 Checking global earthquake activity..."):
+        try:
+            global_earthquakes = fetch_earthquake_data("global", min_magnitude=1.0)
+            if global_earthquakes:
+                # Find the highest magnitude earthquake in the last 24 hours
+                highest_mag_quake = max(global_earthquakes, key=lambda x: x.get('properties', {}).get('mag', 0) or 0)
+                mag = highest_mag_quake.get('properties', {}).get('mag', 0)
+                place = highest_mag_quake.get('properties', {}).get('place', 'Unknown Location')
+                time_ms = highest_mag_quake.get('properties', {}).get('time', 0)
+                
+                if mag and mag > 0:
+                    from datetime import datetime
+                    event_time = datetime.fromtimestamp(time_ms / 1000).strftime('%H:%M UTC')
+                    
+                    # Color coding based on magnitude
+                    if mag >= 7.0:
+                        color = "#FF0000"  # Red for major
+                        alert_icon = "🚨"
+                        severity = "MAJOR"
+                    elif mag >= 6.0:
+                        color = "#FF6600"  # Orange for strong
+                        alert_icon = "⚠️"
+                        severity = "STRONG"
+                    elif mag >= 5.0:
+                        color = "#FFD700"  # Gold for moderate
+                        alert_icon = "🔶"
+                        severity = "MODERATE"
+                    else:
+                        color = "#32CD32"  # Green for light
+                        alert_icon = "🟢"
+                        severity = "LIGHT"
+                    
+                    st.markdown(f"""
+                    <div style='text-align: center; background: linear-gradient(135deg, {color}20 0%, {color}10 100%); 
+                                padding: 1rem; border-radius: 15px; margin-bottom: 1.5rem; border: 2px solid {color}50;'>
+                        <h3 style='margin: 0; color: {color}; font-size: 1.5rem;'>{alert_icon} 24H GLOBAL PEAK: {severity}</h3>
+                        <p style='margin: 0.5rem 0; font-size: 1.8rem; font-weight: bold; color: {color};'>Magnitude {mag:.1f}</p>
+                        <p style='margin: 0; opacity: 0.8; font-size: 1.1rem;'>{place} • {event_time}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.info("🌍 No significant earthquake activity detected in the last 24 hours")
+            else:
+                st.info("🌍 Unable to fetch global earthquake data at this time")
+        except Exception as e:
+            st.warning("⚠️ Global earthquake data temporarily unavailable")
     
     # Admin toggle
     if st.sidebar.button("🔧 Toggle Admin Mode"):
@@ -624,11 +701,11 @@ def main():
             "🇺🇸 United States of America": "usa",
             "🌴 California": "california", 
             "❄️ Alaska": "alaska",
+            "🎰 Nevada": "nevada",
             "🏔️ Northwest": "west_coast",
+            "🌺 Hawaii": "hawaii",
             "🏛️ East of Mississippi": "east_mississippi",
-            "🤠 Texas": "texas",
-            "🌋 Pacific Ring": "pacific",
-            "🌍 Global": "global"
+            "🤠 Texas": "texas"
         }
         
         selected_region = st.selectbox(
