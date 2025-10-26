@@ -44,11 +44,11 @@ class AppConfig:
                 "security_monitoring_enabled": True,
                 "session_retention_days": 90,
                 "security_log_retention_days": 365,
-                "data_anonymization_enabled": False,
-                "consent_required": False
+                "gdpr_compliance_mode": False,
+                "hash_ip_addresses": False
             },
             "metadata": {
-                "config_version": "1.1",
+                "config_version": "1.0",
                 "created_date": datetime.now().isoformat(),
                 "last_updated": datetime.now().isoformat(),
                 "app_version": "1.0.0"

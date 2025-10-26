@@ -9,10 +9,18 @@
   - Retention policy settings
   - Troubleshooting and best practices
 
+### **Enhanced Session Management**
+- **[ENHANCED_SESSION_GUIDE.md](ENHANCED_SESSION_GUIDE.md)** - Complete guide to the enhanced session tracking
+  - Location tracking and IP geolocation
+  - Device fingerprinting and security monitoring
+  - Privacy controls and GDPR compliance
+  - Advanced analytics and reporting
+
 ### **App Documentation**
 - **Main App:** `mobile_earthquake_app.py` - Streamlit-based earthquake monitoring application
 - **Configuration Manager:** `app_config.py` - Thread-safe JSON configuration management
-- **Analytics:** `visitor_metrics.py` - Visitor tracking and metrics collection
+- **Analytics:** `visitor_metrics.py` - Basic visitor tracking and metrics collection
+- **Session Manager:** `user_session_manager.py` - Enhanced session tracking with location and security
 
 ## 🚀 Quick Start
 
@@ -25,21 +33,28 @@
 
 - **Real-time Earthquake Data** from USGS
 - **Mobile-Responsive Design** 
+- **Enhanced Location Tracking** with IP geolocation
+- **Device Fingerprinting** and security monitoring
 - **Configurable Data Retention** (7-365 days)
-- **Visitor Analytics** with export capabilities
+- **Visitor Analytics** with geographic insights
 - **Admin Dashboard** with comprehensive controls
 - **Persistent Configuration** via JSON files
+- **Privacy Controls** and GDPR compliance options
 
 ## 🔧 Configuration Files
 
 - `mobile_config.json` - Main configuration (auto-created)
+- `sessions/user_sessions.json` - Enhanced session tracking (auto-created)
 - `docs/CONFIG_DOCUMENTATION.md` - Complete configuration guide
+- `docs/ENHANCED_SESSION_GUIDE.md` - Session management guide
 
 ## 📊 Data Management
 
 - **Logs:** Rotated based on size and count settings
-- **Metrics:** Cleaned up based on retention policy
+- **Basic Metrics:** Cleaned up based on retention policy
+- **Enhanced Sessions:** Location and device tracking with security monitoring
 - **Configuration:** Persistent across app restarts
+- **Privacy:** Configurable data collection and retention policies
 
 ## 🌐 Live App
 
@@ -48,8 +63,13 @@
 
 ## 💡 Support
 
-For configuration questions, refer to [CONFIG_DOCUMENTATION.md](CONFIG_DOCUMENTATION.md) which includes:
+For configuration questions, refer to:
+- **[CONFIG_DOCUMENTATION.md](CONFIG_DOCUMENTATION.md)** - Complete configuration reference
+- **[ENHANCED_SESSION_GUIDE.md](ENHANCED_SESSION_GUIDE.md)** - Session management and privacy controls
+
+Both guides include:
 - Complete parameter reference
 - Step-by-step admin panel guide
 - Troubleshooting solutions
 - Performance optimization tips
+- Privacy and security considerations
