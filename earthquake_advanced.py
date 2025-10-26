@@ -282,6 +282,52 @@ def fetch_earthquake_data(feed_type="all_hour", region="usa"):
         st.error(f"Error fetching data: {e}")
         return []
 
+@st.cache_data(ttl=300)
+def fetch_global_24h_peak():
+    """Fetch global earthquake data to find the highest magnitude in the last 24 hours"""
+    url = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson"
+    
+    logger.info("Fetching global 24-hour earthquake data for peak magnitude analysis")
+    logger.debug(f"Global API URL: {url}")
+    
+    try:
+        response = requests.get(url, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+        
+        logger.info(f"Successfully fetched global data - {len(data['features'])} earthquakes in last 24 hours")
+        
+        earthquakes = []
+        for feature in data['features']:
+            props = feature['properties']
+            coords = feature['geometry']['coordinates']
+            
+            magnitude = props.get('mag')
+            if magnitude and magnitude > 0:  # Only include earthquakes with valid magnitude
+                earthquakes.append({
+                    'magnitude': magnitude,
+                    'place': props.get('place', 'Unknown Location'),
+                    'time': props.get('time', 0),
+                    'latitude': coords[1],
+                    'longitude': coords[0],
+                    'depth': coords[2] if len(coords) > 2 else 0,
+                    'url': props.get('url', ''),
+                    'properties': props
+                })
+        
+        logger.info(f"Processed {len(earthquakes)} valid earthquakes for global peak analysis")
+        return earthquakes
+    
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error fetching global earthquake data: {e}")
+        return []
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON decode error for global earthquake data: {e}")
+        return []
+    except Exception as e:
+        logger.error(f"Unexpected error fetching global earthquake data: {e}")
+        return []
+
 def create_advanced_map(earthquakes, region="usa"):
     """Create enhanced earthquake map with comprehensive hover info"""
     logger.info(f"Creating advanced map for region '{region}' with {len(earthquakes)} earthquakes")
@@ -752,13 +798,13 @@ def main():
     # Global Highest Magnitude Alert (24 hours)
     with st.spinner("🔍 Checking global earthquake activity..."):
         try:
-            global_earthquakes = fetch_earthquake_data("global", min_magnitude=1.0)
+            global_earthquakes = fetch_global_24h_peak()
             if global_earthquakes:
                 # Find the highest magnitude earthquake in the last 24 hours
-                highest_mag_quake = max(global_earthquakes, key=lambda x: x.get('properties', {}).get('mag', 0) or 0)
-                mag = highest_mag_quake.get('properties', {}).get('mag', 0)
-                place = highest_mag_quake.get('properties', {}).get('place', 'Unknown Location')
-                time_ms = highest_mag_quake.get('properties', {}).get('time', 0)
+                highest_mag_quake = max(global_earthquakes, key=lambda x: x.get('magnitude', 0))
+                mag = highest_mag_quake.get('magnitude', 0)
+                place = highest_mag_quake.get('place', 'Unknown Location')
+                time_ms = highest_mag_quake.get('time', 0)
                 
                 if mag and mag > 0:
                     from datetime import datetime
@@ -790,12 +836,17 @@ def main():
                         <p style='margin: 0; opacity: 0.8; font-size: 1.1rem;'>{place} • {event_time}</p>
                     </div>
                     """, unsafe_allow_html=True)
+                    
+                    logger.info(f"Displayed 24H Global Peak: M{mag:.1f} at {place} ({event_time})")
                 else:
                     st.info("🌍 No significant earthquake activity detected in the last 24 hours")
+                    logger.info("No valid magnitude data found for 24H Global Peak display")
             else:
                 st.info("🌍 Unable to fetch global earthquake data at this time")
+                logger.warning("Failed to fetch global earthquake data for 24H Peak display")
         except Exception as e:
             st.warning("⚠️ Global earthquake data temporarily unavailable")
+            logger.error(f"Error displaying 24H Global Peak: {e}")
     
     # Admin toggle
     if st.sidebar.button("🔧 Toggle Admin Mode"):
