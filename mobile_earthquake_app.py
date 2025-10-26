@@ -21,7 +21,15 @@ from visitor_metrics import get_metrics
 
 # Configure logging with rotation
 def setup_logging():
-    """Setup rotating file logger with size and count limits"""
+    """
+    Setup rotating file logger with size and count limits.
+    
+    Creates a logs directory if it doesn't exist and configures a rotating
+    file handler that keeps log files under 5MB and maintains up to 10 backup files.
+    
+    Returns:
+        logging.Logger: Configured logger instance for the earthquake app
+    """
     # Create logs directory if it doesn't exist
     log_dir = "logs"
     if not os.path.exists(log_dir):
@@ -57,7 +65,18 @@ def setup_logging():
 logger = setup_logging()
 
 def log_performance(func):
-    """Decorator to log function performance"""
+    """
+    Decorator to log function performance metrics.
+    
+    Wraps functions to automatically log their execution time and any errors
+    that occur during execution. Useful for monitoring app performance.
+    
+    Args:
+        func: The function to be decorated
+        
+    Returns:
+        function: Wrapped function with performance logging
+    """
     @wraps(func)
     def wrapper(*args, **kwargs):
         start_time = time.time()
@@ -76,7 +95,16 @@ def log_performance(func):
     return wrapper
 
 def log_user_action(action, details=None):
-    """Log user interactions"""
+    """
+    Log user interactions for analytics and debugging.
+    
+    Records user actions both in the application log and persistent metrics
+    storage for later analysis. Includes session tracking.
+    
+    Args:
+        action (str): The action performed by the user (e.g., 'data_source_change')
+        details (str, optional): Additional details about the action
+    """
     session_id = st.session_state.get('session_id', 'unknown')
     log_msg = f"USER_ACTION | Session: {session_id} | Action: {action}"
     if details:
@@ -88,7 +116,16 @@ def log_user_action(action, details=None):
     metrics.record_user_action(action, details)
 
 def track_visitor():
-    """Track unique visitors and page views"""
+    """
+    Track unique visitors and page views for analytics.
+    
+    Creates a persistent visitor ID across browser sessions and logs new
+    visitors with their user agent information. Records both new visitors
+    and page views in persistent metrics storage.
+    
+    Returns:
+        str: Unique visitor ID (12-character UUID)
+    """
     # Get or create visitor ID (persists across browser sessions)
     visitor_id = st.session_state.get('visitor_id')
     if not visitor_id:
@@ -124,7 +161,21 @@ def track_visitor():
     return visitor_id
 
 def get_visit_stats():
-    """Get visitor statistics from persistent metrics (fallback to logs)"""
+    """
+    Get visitor statistics from persistent metrics with log fallback.
+    
+    Attempts to retrieve visitor statistics from the persistent metrics system.
+    If that fails, falls back to parsing log files for basic statistics.
+    
+    Returns:
+        dict: Dictionary containing visitor statistics including:
+            - unique_visitors: Total number of unique visitors
+            - page_views: Total number of page views
+            - new_visitors_today: Number of new visitors today
+            - total_sessions: Total number of sessions
+            - days_active: Number of days with activity
+            - avg_page_views_per_visitor: Average page views per visitor
+    """
     try:
         # First try persistent metrics
         metrics = get_metrics()
@@ -181,7 +232,22 @@ def get_visit_stats():
             return {"unique_visitors": 0, "page_views": 0, "new_visitors_today": 0}
 
 def get_detailed_analytics():
-    """Get detailed analytics from persistent metrics (fallback to logs)"""
+    """
+    Get detailed analytics from persistent metrics with log fallback.
+    
+    Retrieves comprehensive analytics data including popular data sources,
+    view types, user actions, and error logs. Uses persistent metrics
+    as primary source with log file parsing as fallback.
+    
+    Returns:
+        dict: Dictionary containing detailed analytics:
+            - daily_visitors: Daily visitor breakdown (dict)
+            - popular_data_sources: Most used data sources (dict)
+            - popular_views: Most viewed sections (dict)
+            - user_actions: User action frequency (dict)
+            - session_count: Total number of sessions (int)
+            - errors: List of recent error messages (list)
+    """
     try:
         # First try persistent metrics
         metrics = get_metrics()
@@ -273,7 +339,14 @@ def get_detailed_analytics():
             return {}
 
 def show_admin_dashboard():
-    """Show admin analytics dashboard (hidden feature)"""
+    """
+    Show admin analytics dashboard in the sidebar (hidden feature).
+    
+    Displays comprehensive analytics including visitor statistics, popular
+    data sources, popular views, and recent errors. Only accessible via
+    URL parameter '?admin=true'. Used for monitoring app usage and
+    identifying issues.
+    """
     st.sidebar.title("📊 Analytics Dashboard")
     
     # Basic stats
@@ -377,7 +450,35 @@ st.markdown("""
 @st.cache_data(ttl=300)  # Cache for 5 minutes
 @log_performance
 def fetch_earthquake_data(feed_type="all_hour"):
-    """Fetch earthquake data from USGS with caching"""
+    """
+    Fetch earthquake data from USGS API with caching and comprehensive logging.
+    
+    Retrieves earthquake data from the USGS GeoJSON feed, filters for USA region
+    earthquakes, and performs data quality analysis. Includes detailed logging
+    of the filtering process and magnitude validation.
+    
+    Args:
+        feed_type (str): Type of earthquake feed to fetch. Options include:
+            - "all_hour": All earthquakes in the past hour
+            - "all_day": All earthquakes in the past day
+            - "all_week": All earthquakes in the past week
+            - "all_month": All earthquakes in the past month
+            - "significant_month": Significant earthquakes in the past month
+            - "4.5_week": Magnitude 4.5+ earthquakes in the past week
+            - "2.5_week": Magnitude 2.5+ earthquakes in the past week
+    
+    Returns:
+        list: List of earthquake dictionaries with keys:
+            - magnitude: Earthquake magnitude (float)
+            - place: Location description (str)
+            - time: Unix timestamp in milliseconds (int)
+            - depth: Depth in kilometers (float)
+            - longitude: Longitude coordinate (float)
+            - latitude: Latitude coordinate (float)
+            - alert: Alert level if any (str or None)
+            - tsunami: Tsunami warning flag (int)
+            - url: USGS details URL (str)
+    """
     base_url = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/"
     url = f"{base_url}{feed_type}.geojson"
     
@@ -439,8 +540,18 @@ def fetch_earthquake_data(feed_type="all_hour"):
         if usa_count > total_earthquakes:
             logger.error(f"DATA_FETCH | ANOMALY: USA count ({usa_count}) > worldwide count ({total_earthquakes})")
         
+        # Detailed magnitude analysis
         valid_magnitudes = sum(1 for eq in earthquakes if eq['magnitude'] is not None and eq['magnitude'] > 0)
-        logger.info(f"DATA_FETCH | Valid earthquakes with magnitude: {valid_magnitudes}/{usa_count}")
+        null_magnitudes = sum(1 for eq in earthquakes if eq['magnitude'] is None)
+        zero_magnitudes = sum(1 for eq in earthquakes if eq['magnitude'] == 0)
+        negative_magnitudes = sum(1 for eq in earthquakes if eq['magnitude'] is not None and eq['magnitude'] < 0)
+        
+        logger.info(f"DATA_FETCH | Magnitude breakdown: {valid_magnitudes} valid, {null_magnitudes} null, {zero_magnitudes} zero, {negative_magnitudes} negative")
+        logger.info(f"DATA_FETCH | Total USA earthquakes: {usa_count} → Valid for display: {valid_magnitudes}")
+        
+        if valid_magnitudes != usa_count:
+            filtered_count = usa_count - valid_magnitudes
+            logger.warning(f"DATA_FETCH | {filtered_count} earthquakes filtered out due to invalid magnitude data")
         
         # Add debug information for all feed types
         if len(earthquakes) != total_earthquakes:
@@ -480,7 +591,12 @@ def fetch_earthquake_data(feed_type="all_hour"):
 
 
 def create_mobile_header():
-    """Create mobile-friendly header"""
+    """
+    Create mobile-friendly header for the earthquake monitoring app.
+    
+    Displays the main title and subtitle in a centered, mobile-optimized
+    format using custom HTML styling.
+    """
     st.markdown("""
     <div style="text-align: center; padding: 1rem 0;">
         <h1>🌍 USGS Earthquake Monitor</h1>
@@ -490,7 +606,13 @@ def create_mobile_header():
 
 
 def create_status_bar():
-    """Create status bar showing active data source and view type"""
+    """
+    Create status bar showing active data source and view type.
+    
+    Displays the currently selected earthquake data feed and view mode
+    in a prominent status bar. Helps users understand what data they're
+    viewing and provides visual feedback for their selections.
+    """
     # Get current selections
     current_feed = st.session_state.get('feed_type', 'all_hour')
     current_view = st.session_state.get('view_type', 'overview')
@@ -537,7 +659,16 @@ def create_status_bar():
 
 @log_performance
 def show_quick_stats(earthquakes):
-    """Show quick statistics in mobile-friendly cards"""
+    """
+    Show quick statistics in mobile-friendly metric cards.
+    
+    Displays key earthquake statistics in a 2x2 grid layout optimized for
+    mobile devices. Shows total count, maximum magnitude, average magnitude,
+    and time since latest activity.
+    
+    Args:
+        earthquakes (list): List of earthquake dictionaries from fetch_earthquake_data()
+    """
     if not earthquakes:
         return
     
@@ -589,7 +720,16 @@ def show_quick_stats(earthquakes):
 
 @log_performance
 def create_mobile_map(earthquakes):
-    """Create mobile-optimized earthquake map"""
+    """
+    Create mobile-optimized earthquake map using Plotly.
+    
+    Generates an interactive map showing earthquake locations with magnitude-based
+    sizing and color coding. Optimized for mobile viewing with appropriate
+    height and responsive design.
+    
+    Args:
+        earthquakes (list): List of earthquake dictionaries with location and magnitude data
+    """
     if not earthquakes:
         st.warning("No earthquake data available")
         return
@@ -643,7 +783,16 @@ def create_mobile_map(earthquakes):
 
 
 def show_earthquake_list(earthquakes):
-    """Show earthquake list in mobile-friendly cards"""
+    """
+    Show earthquake list in mobile-friendly cards format.
+    
+    Displays earthquakes as individual cards sorted by magnitude (highest first).
+    Each card shows magnitude, location, time, depth, and uses color coding
+    based on magnitude level. Limited to top 10 earthquakes for mobile performance.
+    
+    Args:
+        earthquakes (list): List of earthquake dictionaries to display
+    """
     if not earthquakes:
         return
     
@@ -680,9 +829,9 @@ def show_earthquake_list(earthquakes):
                     box-shadow: 0 2px 4px rgba(0,0,0,0.1); clear: both;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                    <strong>{emoji} M {eq['magnitude']:.1f}</strong><br>
-                    <span style="color: #666;">{eq['place']}</span><br>
-                    <small>⏰ {time_str} | 📍 {eq['depth']:.1f}km deep</small>
+                    <strong style="color: #222;">{emoji} M {eq['magnitude']:.1f}</strong><br>
+                    <span style="color: #444;">{eq['place']}</span><br>
+                    <small style="color: #666;">⏰ {time_str} | 📍 {eq['depth']:.1f}km deep</small>
                 </div>
             </div>
         </div>
@@ -690,7 +839,16 @@ def show_earthquake_list(earthquakes):
 
 
 def create_magnitude_chart(earthquakes):
-    """Create mobile-friendly magnitude distribution chart"""
+    """
+    Create mobile-friendly magnitude distribution histogram.
+    
+    Generates a histogram showing the distribution of earthquake magnitudes
+    using Plotly. Helps users understand the frequency distribution of
+    different magnitude levels in the current dataset.
+    
+    Args:
+        earthquakes (list): List of earthquake dictionaries with magnitude data
+    """
     if not earthquakes:
         return
     
@@ -721,7 +879,25 @@ def create_magnitude_chart(earthquakes):
 
 
 def show_regional_breakdown(earthquakes):
-    """Show earthquake breakdown by US regions and states"""
+    """
+    Show comprehensive earthquake breakdown by US regions and states.
+    
+    Analyzes earthquake distribution across 8 major US seismic regions including
+    California, Alaska, Hawaii, Pacific Northwest, Nevada/Utah, Eastern US,
+    Central US, and Yellowstone. Displays regional statistics, activity levels,
+    quiet regions, detailed listings for most active regions, and a comprehensive
+    histogram showing activity distribution across all regions.
+    
+    Features:
+    - Regional activity cards with color-coded alerts
+    - Quiet regions notification with time-period awareness
+    - Detailed earthquake listings for most active region
+    - Interactive histogram with color-coded activity levels
+    - Educational guide for chart interpretation
+    
+    Args:
+        earthquakes (list): List of earthquake dictionaries with coordinates and magnitude data
+    """
     if not earthquakes:
         return
     
@@ -732,6 +908,16 @@ def show_regional_breakdown(earthquakes):
     # Add proper spacing
     st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
     st.subheader("🏛️ Regional Breakdown")
+    
+    # Add data quality notice for regional analysis
+    st.info("📍 **Regional Analysis:** Only showing earthquakes with confirmed magnitude readings (M > 0.0) for accurate regional comparisons")
+    
+    # Add regional activity hint
+    if st.session_state.get('feed_type', 'all_hour') in ['all_hour', 'all_day']:
+        st.markdown("""
+        💡 **Tip:** Alaska earthquakes are common but may not appear in short time periods. 
+        Try "**All Week**" or "**Past Month**" data sources to see more regional activity.
+        """)
     
     # Define US regions with state boundaries (approximate)
     regions = {
@@ -767,6 +953,79 @@ def show_regional_breakdown(earthquakes):
     
     # Display regional statistics
     if regional_counts:
+        # Add Most Active Region Banner
+        sorted_regions = sorted(regional_counts.items(), key=lambda x: x[1], reverse=True)
+        most_active_region, most_active_count = sorted_regions[0]
+        
+        # Create prominent banner for most active region
+        if most_active_count >= 10:
+            banner_color = "#dc3545"  # Red
+            banner_bg = "#f8d7da"
+            alert_emoji = "🚨"
+            alert_level = "HIGH ACTIVITY ALERT"
+        elif most_active_count >= 5:
+            banner_color = "#fd7e14"  # Orange
+            banner_bg = "#fff3cd"
+            alert_emoji = "⚠️"
+            alert_level = "MODERATE ACTIVITY"
+        else:
+            banner_color = "#28a745"  # Green
+            banner_bg = "#d4edda"
+            alert_emoji = "📊"
+            alert_level = "CURRENT ACTIVITY"
+        
+        # Remove emoji from region name for banner
+        clean_region_name = most_active_region.split(' ', 1)[1] if ' ' in most_active_region else most_active_region
+        
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, {banner_bg} 0%, {banner_bg}dd 100%); 
+                    border: 2px solid {banner_color}; border-radius: 1rem; 
+                    padding: 1.5rem; margin: 1.5rem 0; text-align: center;
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.15);">
+            <div style="display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0.5rem;">
+                <span style="font-size: 2em;">{alert_emoji}</span>
+                <div style="flex-grow: 1; min-width: 200px;">
+                    <h3 style="margin: 0; color: {banner_color}; font-weight: bold;">
+                        {alert_level}
+                    </h3>
+                    <h2 style="margin: 0.5rem 0 0 0; color: #222; font-size: 1.8em;">
+                        {clean_region_name} - Most Active Region
+                    </h2>
+                    <p style="margin: 0.5rem 0 0 0; color: #555; font-size: 1.1em;">
+                        <strong>{most_active_count} earthquake{'s' if most_active_count != 1 else ''}</strong> detected in current time period
+                    </p>
+                    <p style="margin: 0.3rem 0 0 0; color: #777; font-size: 0.9em;">
+                        Showing top 5 highest magnitude earthquakes from most active regions
+                    </p>
+                </div>
+                <span style="font-size: 2em;">{alert_emoji}</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Alaska-specific status check (fix key lookup with emoji)
+        alaska_key = "❄️ Alaska"
+        alaska_count = regional_counts.get(alaska_key, 0)
+        if alaska_count > 0:
+            st.success(f"🏔️ **Alaska Alert:** {alaska_count} earthquake{'s' if alaska_count != 1 else ''} detected in current time period!")
+        else:
+            # Check if Alaska is just quiet this period
+            current_feed = st.session_state.get('feed_type', 'all_hour')
+            if current_feed in ['all_hour', 'all_day']:
+                st.info("🏔️ **Alaska Status:** No activity in current period. Try **All Week** or **Past Month** for Alaska earthquakes.")
+                # Add quick access buttons for Alaska
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("🌍 Try All Week", key="alaska_week"):
+                        st.session_state.feed_type = "all_week"
+                        st.rerun()
+                with col2:
+                    if st.button("🔍 Try Past Month", key="alaska_month"):
+                        st.session_state.feed_type = "all_month"
+                        st.rerun()
+            else:
+                st.warning("🏔️ **Alaska Status:** No earthquakes detected in selected time period.")
+        
         col1, col2 = st.columns(2)
         
         # Sort regions by earthquake count
@@ -793,11 +1052,11 @@ def show_regional_breakdown(earthquakes):
                 st.markdown(f"""
                 <div style="background-color: {bg_color}; padding: 1rem; border-radius: 0.5rem; 
                             border-left: 4px solid {border_color}; margin: 0.5rem 0;">
-                    <h4 style="margin: 0 0 0.5rem 0; color: #333;">{region}</h4>
+                    <h4 style="margin: 0 0 0.5rem 0; color: #222;">{region}</h4>
                     <div style="display: flex; justify-content: space-between;">
                         <div>
-                            <strong>{count} earthquakes</strong><br>
-                            <small>Max: M{max_mag:.1f} | Avg: M{avg_mag:.1f}</small>
+                            <strong style="color: #333;">{count} earthquakes</strong><br>
+                            <small style="color: #555;">Max: M{max_mag:.1f} | Avg: M{avg_mag:.1f}</small>
                         </div>
                         <div style="text-align: right; font-size: 2em;">
                             {'🔴' if count >= 10 else '🟡' if count >= 5 else '🟢'}
@@ -806,17 +1065,87 @@ def show_regional_breakdown(earthquakes):
                 </div>
                 """, unsafe_allow_html=True)
         
-        # Show detailed earthquake list for most active region
+        # Show regions with no activity
+        all_regions = list(regions.keys())
+        active_regions = list(regional_counts.keys())
+        inactive_regions = [region for region in all_regions if region not in active_regions]
+        
+        if inactive_regions:
+            st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
+            st.subheader("😴 Quiet Regions")
+            
+            # Get current time period for the message
+            current_feed = st.session_state.get('feed_type', 'all_hour')
+            feed_descriptions = {
+                "all_hour": "past hour",
+                "all_day": "past day", 
+                "all_week": "past week",
+                "all_month": "past month",
+                "significant_month": "significant events (past month)",
+                "4.5_week": "magnitude 4.5+ (past week)",
+                "2.5_week": "magnitude 2.5+ (past week)"
+            }
+            time_period = feed_descriptions.get(current_feed, "selected time period")
+            
+            st.info(f"✨ The following regions had no earthquake activity during the {time_period}:")
+            
+            # Display inactive regions in a more compact format
+            inactive_col1, inactive_col2 = st.columns(2)
+            for i, region in enumerate(inactive_regions):
+                with inactive_col1 if i % 2 == 0 else inactive_col2:
+                    st.markdown(f"""
+                    <div style="background-color: #f8f9fa; padding: 0.8rem; border-radius: 0.5rem; 
+                                border-left: 3px solid #28a745; margin: 0.3rem 0; 
+                                box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <span style="color: #222;"><strong>{region}</strong></span>
+                            <span style="color: #28a745; font-size: 1.2em;">😌</span>
+                        </div>
+                        <small style="color: #666;">No activity detected</small>
+                    </div>
+                    """, unsafe_allow_html=True)
+        
+        # Show detailed earthquake list with smart regional priority
         if sorted_regions:
+            # Priority order: Alaska first (if active), then most active region, then other significant regions
+            regions_to_show = []
+            alaska_key = "❄️ Alaska"
+            
+            # Always prioritize Alaska if it has activity
+            if alaska_key in regional_counts and regional_counts[alaska_key] > 0:
+                regions_to_show.append((alaska_key, regional_counts[alaska_key], "Alaska Priority"))
+            
+            # Add the most active region if it's different from Alaska
             most_active_region, most_active_count = sorted_regions[0]
-            if most_active_count > 0:
+            if most_active_region != alaska_key and most_active_count > 0:
+                regions_to_show.append((most_active_region, most_active_count, "Most Active"))
+            
+            # Add any other regions with significant activity (5+ earthquakes) up to 5 total regions
+            for region, count in sorted_regions:
+                if (region not in [r[0] for r in regions_to_show] and 
+                    count >= 5 and 
+                    len(regions_to_show) < 5):
+                    regions_to_show.append((region, count, "High Activity"))
+            
+            # Display detailed activity for selected regions
+            for i, (region_name, region_count, priority_reason) in enumerate(regions_to_show):
                 st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
-                st.subheader(f"📋 {most_active_region} - Detailed Activity")
                 
-                region_quakes = regional_earthquakes[most_active_region]
+                # Special header styling for different priority types
+                if priority_reason == "Alaska Priority":
+                    st.subheader(f"🏔️ {region_name} - Top 5 Highest Magnitude Earthquakes")
+                elif priority_reason == "Most Active":
+                    st.subheader(f"📋 {region_name} - Top 5 Highest Magnitude Earthquakes") 
+                else:
+                    st.subheader(f"⚡ {region_name} - Top 3 Highest Magnitude Earthquakes")
+                
+                region_quakes = regional_earthquakes[region_name]
                 region_quakes.sort(key=lambda x: x['magnitude'], reverse=True)
                 
-                for eq in region_quakes[:5]:  # Show top 5
+                # Show different numbers based on priority
+                max_quakes = 5 if i == 0 else 3  # Show more for first priority region
+                
+                for eq in region_quakes[:max_quakes]:
                     time_dt = datetime.fromtimestamp(eq['time']/1000)
                     time_str = time_dt.strftime("%m/%d %H:%M")
                     
@@ -834,17 +1163,152 @@ def show_regional_breakdown(earthquakes):
                     <div style="background-color: #ffffff; padding: 0.8rem; border-radius: 0.5rem; 
                                 border-left: 3px solid {border_color}; margin: 0.3rem 0; 
                                 box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                        <strong>{emoji} M {eq['magnitude']:.1f}</strong> - {eq['place']}<br>
-                        <small>⏰ {time_str} | 📍 {eq['depth']:.1f}km deep</small>
+                        <strong style="color: #222;">{emoji} M {eq['magnitude']:.1f}</strong> - <span style="color: #444;">{eq['place']}</span><br>
+                        <small style="color: #666;">⏰ {time_str} | 📍 {eq['depth']:.1f}km deep</small>
                     </div>
                     """, unsafe_allow_html=True)
+                
+                # Add summary if there are more earthquakes than shown
+                if len(region_quakes) > max_quakes:
+                    remaining = len(region_quakes) - max_quakes
+                    st.markdown(f"<small style='color: #666;'>... and {remaining} more earthquake{'s' if remaining != 1 else ''} in {region_name} (showing highest magnitude earthquakes first)</small>", unsafe_allow_html=True)
+        
+        # Show regional activity histogram
+        st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
+        st.subheader("📊 Regional Activity Histogram")
+        
+        # Add data explanation before histogram
+        current_feed = st.session_state.get('feed_type', 'all_hour')
+        feed_descriptions = {
+            "all_hour": "past hour",
+            "all_day": "past day", 
+            "all_week": "past week",
+            "all_month": "past month",
+            "significant_month": "significant events (past month)",
+            "4.5_week": "magnitude 4.5+ (past week)",
+            "2.5_week": "magnitude 2.5+ (past week)"
+        }
+        time_period = feed_descriptions.get(current_feed, "selected time period")
+        
+        st.info(f"📊 **Magnitude Filter Applied:** Chart shows only earthquakes with magnitude > 0.0 during the {time_period}")
+        
+        # Prepare data for histogram including regions with zero activity
+        all_region_names = []
+        all_earthquake_counts = []
+        colors = []
+        
+        for region_name in regions.keys():
+            # Remove emojis from region names for cleaner chart
+            clean_name = region_name.split(' ', 1)[1] if ' ' in region_name else region_name
+            all_region_names.append(clean_name)
+            
+            count = regional_counts.get(region_name, 0)
+            all_earthquake_counts.append(count)
+            
+            # Color coding based on activity level
+            if count >= 10:
+                colors.append('#f44336')  # Red
+            elif count >= 5:
+                colors.append('#ff9800')  # Orange
+            elif count >= 1:
+                colors.append('#4caf50')  # Green
+            else:
+                colors.append('#e0e0e0')  # Gray for no activity
+        
+        # Create histogram
+        fig = px.bar(
+            x=all_region_names,
+            y=all_earthquake_counts,
+            title="🌎 Regional Earthquake Activity Distribution",
+            labels={'x': 'Region', 'y': 'Number of Earthquakes'},
+            height=400,
+            color=all_earthquake_counts,
+            color_continuous_scale=[(0, '#e0e0e0'), (0.1, '#4caf50'), (0.5, '#ff9800'), (1, '#f44336')]
+        )
+        
+        # Customize the chart
+        fig.update_layout(
+            margin=dict(l=0, r=0, t=40, b=0),
+            font=dict(size=12),
+            title_font_size=16,
+            xaxis_tickangle=-45,
+            showlegend=False,
+            xaxis_title="US Regions",
+            yaxis_title="Earthquake Count"
+        )
+        
+        # Add value labels on bars
+        fig.update_traces(
+            texttemplate='%{y}',
+            textposition='outside',
+            textfont_size=11
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Add interpretation helper
+        current_feed = st.session_state.get('feed_type', 'all_hour')
+        feed_descriptions = {
+            "all_hour": "past hour",
+            "all_day": "past day", 
+            "all_week": "past week",
+            "all_month": "past month",
+            "significant_month": "significant events (past month)",
+            "4.5_week": "magnitude 4.5+ (past week)",
+            "2.5_week": "magnitude 2.5+ (past week)"
+        }
+        time_period = feed_descriptions.get(current_feed, "selected time period")
+        
+        with st.expander("📖 How to Read This Chart", expanded=False):
+            st.markdown(f"""
+            **Chart Colors:**
+            - 🔴 **Red bars (10+ earthquakes)**: High activity regions during the {time_period}
+            - 🟠 **Orange bars (5-9 earthquakes)**: Moderate activity regions
+            - 🟢 **Green bars (1-4 earthquakes)**: Low activity regions  
+            - ⚫ **Gray bars (0 earthquakes)**: Quiet regions with no detected activity
+            
+            **Data Quality Standards:**
+            - ✅ **Only validated earthquakes shown** (magnitude > 0.0)
+            - ❌ **Excludes incomplete data** (null, zero, or negative magnitudes)
+            - 🔬 **Scientific accuracy prioritized** over raw event counts
+            
+            **What This Shows:**
+            - Total confirmed earthquake count per region during the {time_period}
+            - Relative seismic activity levels across the United States
+            - Which regions are most/least seismically active right now
+            
+            **Why Some Events Are Filtered:**
+            - USGS initially reports events before magnitude calculation is complete
+            - Quality control ensures accurate regional comparisons
+            - Prevents misleading statistics from preliminary data
+            """)
+    
     
     else:
-        st.info("🌍 No earthquakes detected in major US regions during this time period")
+        st.info("🌍 No confirmed earthquakes detected in major US regions during this time period")
+        st.markdown("""
+        <div style="background-color: #f8f9fa; padding: 1rem; border-radius: 0.5rem; 
+                    border-left: 3px solid #17a2b8; margin: 1rem 0;">
+            <h5 style="color: #17a2b8; margin: 0 0 0.5rem 0;">📊 Data Quality Note</h5>
+            <p style="margin: 0; color: #333;">
+                This analysis only includes earthquakes with confirmed magnitude readings (M > 0.0). 
+                Some recently detected events may be excluded while USGS completes magnitude analysis.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
 
 
 def create_regional_chart(earthquakes):
-    """Create regional activity chart"""
+    """
+    Create regional activity bar chart for earthquake distribution.
+    
+    Generates a bar chart showing earthquake counts by US region using Plotly.
+    Only displays regions with earthquake activity. Used as an alternative
+    visualization to the comprehensive regional breakdown.
+    
+    Args:
+        earthquakes (list): List of earthquake dictionaries with coordinate data
+    """
     if not earthquakes:
         return
     
@@ -905,7 +1369,23 @@ def create_regional_chart(earthquakes):
 
 
 def main():
-    """Main mobile web app"""
+    """
+    Main mobile web app function and entry point.
+    
+    Orchestrates the entire earthquake monitoring web application including:
+    - Visitor tracking and session management
+    - Admin dashboard access control
+    - Mobile-friendly navigation interface
+    - Data source selection buttons
+    - View type selection buttons
+    - Data fetching and display coordination
+    - Error handling and user feedback
+    - Auto-refresh functionality
+    
+    The app supports multiple earthquake data feeds from USGS and various
+    view modes including overview, map, list, statistics, and regional analysis.
+    All interactions are logged for analytics and debugging purposes.
+    """
     # Check for admin dashboard access via URL parameter
     try:
         query_params = st.query_params if hasattr(st, 'query_params') else {}
@@ -953,6 +1433,9 @@ def main():
     # Mobile-friendly navigation
     st.subheader("📡 Select Data Source")
     
+    # Add user instruction for mobile interaction
+    st.info("💡 **Tip:** Tap any button below to change data source or view. The highlighted button shows your current selection.")
+    
     # Create mobile-friendly buttons for data sources
     col1, col2 = st.columns(2)
     
@@ -994,6 +1477,9 @@ def main():
     # View Selection
     st.subheader("📱 Select View Type")
     
+    # Add user instruction for view selection
+    st.info("📱 **Mobile Tip:** Tap any view button to see different earthquake data displays. Blue buttons show active selections.")
+    
     # Create mobile-friendly buttons for view types
     col3, col4 = st.columns(2)
     
@@ -1032,8 +1518,38 @@ def main():
         earthquakes = fetch_earthquake_data(st.session_state.feed_type)
     
     if earthquakes:
-        st.success(f"✅ Found {len(earthquakes)} earthquakes in USA")
-        logger.info(f"UI_RENDER | Displaying {len(earthquakes)} earthquakes in {st.session_state.view_type} view")
+        valid_count = sum(1 for eq in earthquakes if eq['magnitude'] is not None and eq['magnitude'] > 0)
+        invalid_count = len(earthquakes) - valid_count
+        
+        if invalid_count > 0:
+            st.success(f"✅ Found {len(earthquakes)} earthquakes in USA ({valid_count} with valid magnitude data, {invalid_count} pending analysis)")
+            st.info(f"ℹ️ **Data Quality Note:** Displaying {valid_count} earthquakes with confirmed magnitude readings. USGS sometimes reports events with incomplete magnitude data that are excluded from analysis.")
+            
+            # Add expandable explanation for data filtering
+            with st.expander("📊 Why are some earthquakes filtered out?", expanded=False):
+                st.markdown("""
+                **Data Quality Standards:**
+                - ✅ **Included:** Earthquakes with magnitude > 0.0 and complete location data
+                - ❌ **Excluded:** Events with null, zero, or negative magnitude values
+                - 🔄 **Pending:** Some recent events may lack final magnitude analysis
+                
+                **Why This Matters:**
+                - Ensures accurate regional comparisons and statistics
+                - Prevents misleading visualizations from incomplete data
+                - Maintains scientific integrity of earthquake monitoring
+                
+                **USGS Data Pipeline:**
+                1. Initial detection and location
+                2. Magnitude calculation and verification  
+                3. Quality review and final publication
+                
+                *Events typically receive final magnitude readings within minutes to hours of detection.*
+                """)
+        else:
+            st.success(f"✅ Found {len(earthquakes)} earthquakes in USA")
+            st.info(f"ℹ️ **All Events Validated:** Displaying {valid_count} earthquakes with confirmed magnitude readings")
+        
+        logger.info(f"UI_RENDER | Displaying {len(earthquakes)} earthquakes ({valid_count} valid) in {st.session_state.view_type} view")
         
         # Show quick stats
         show_quick_stats(earthquakes)
@@ -1091,8 +1607,8 @@ def main():
     
     # Mobile-friendly footer
     st.markdown("""
-    <div style="text-align: center; padding: 2rem 0; color: #666; border-top: 1px solid #eee; margin-top: 2rem;">
-        <small>
+    <div style="text-align: center; padding: 2rem 0; color: #555; border-top: 1px solid #eee; margin-top: 2rem;">
+        <small style="color: #666;">
         📡 Data from USGS Earthquake Hazards Program<br>
         🔄 Updates every 5 minutes | 📱 Optimized for mobile devices
         </small>
