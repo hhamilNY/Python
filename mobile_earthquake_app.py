@@ -423,6 +423,99 @@ def show_admin_dashboard():
                 st.write("📄 No log file available for download")
         except Exception as e:
             st.write(f"❌ Error preparing download: {e}")
+    
+    # Add visitor metrics download button
+    with st.sidebar.expander("📈 Download Visitor Metrics", expanded=False):
+        try:
+            # Get comprehensive metrics data
+            metrics = get_metrics()
+            
+            # Collect all metrics data
+            summary_stats = metrics.get_summary_stats()
+            popular_items = metrics.get_popular_items()
+            
+            # Create comprehensive metrics report
+            metrics_report = f"""EARTHQUAKE MONITOR - VISITOR METRICS REPORT
+Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+=================================================
+
+SUMMARY STATISTICS:
+- Total Unique Visitors: {summary_stats.get('total_unique_visitors', 0)}
+- Total Page Views: {summary_stats.get('total_page_views', 0)}
+- Total Sessions: {summary_stats.get('total_sessions', 0)}
+- New Visitors Today: {summary_stats.get('new_visitors_today', 0)}
+- Days Active: {summary_stats.get('days_active', 0)}
+- Average Page Views per Visitor: {summary_stats.get('avg_page_views_per_visitor', 0):.2f}
+
+POPULAR DATA SOURCES:
+"""
+            # Add popular data sources
+            for source, count in popular_items.get('data_sources', {}).items():
+                metrics_report += f"- {source}: {count} uses\n"
+            
+            metrics_report += f"""
+POPULAR VIEWS:
+"""
+            # Add popular views
+            for view, count in popular_items.get('views', {}).items():
+                metrics_report += f"- {view}: {count} views\n"
+            
+            metrics_report += f"""
+USER ACTIONS:
+"""
+            # Add user actions
+            for action, count in popular_items.get('actions', {}).items():
+                metrics_report += f"- {action}: {count} times\n"
+            
+            metrics_report += f"""
+=================================================
+This report contains visitor analytics and usage patterns
+for the USGS Earthquake Monitor application.
+"""
+            
+            # Download button for metrics
+            st.download_button(
+                label="📈 Download Visitor Metrics Report",
+                data=metrics_report,
+                file_name=f"visitor_metrics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                mime="text/plain",
+                help="Download comprehensive visitor analytics and usage statistics"
+            )
+            
+            # Show metrics summary
+            st.write(f"📊 **Metrics Summary:**")
+            st.write(f"- {summary_stats.get('total_unique_visitors', 0)} unique visitors")
+            st.write(f"- {summary_stats.get('total_page_views', 0)} page views")
+            st.write(f"- {len(popular_items.get('data_sources', {}))} data sources tracked")
+            st.write(f"- {len(popular_items.get('views', {}))} view types tracked")
+            
+        except Exception as e:
+            st.write(f"❌ Error preparing metrics download: {e}")
+            
+        # Also add raw JSON download option for advanced users
+        try:
+            import json
+            
+            # Get raw metrics data as JSON
+            raw_metrics = {
+                "summary_stats": metrics.get_summary_stats(),
+                "popular_items": metrics.get_popular_items(),
+                "export_timestamp": datetime.now().isoformat(),
+                "app_name": "earthquake_monitor"
+            }
+            
+            json_data = json.dumps(raw_metrics, indent=2, ensure_ascii=False)
+            
+            st.download_button(
+                label="📋 Download Raw Metrics (JSON)",
+                data=json_data,
+                file_name=f"metrics_raw_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                mime="application/json", 
+                help="Download raw metrics data in JSON format for analysis"
+            )
+            
+        except Exception as e:
+            st.write(f"⚠️ JSON export not available: {e}")
 
 
 # Configure Streamlit page
