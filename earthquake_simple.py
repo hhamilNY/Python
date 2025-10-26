@@ -112,7 +112,7 @@ def fetch_earthquake_data(feed_type="all_hour", region="usa"):
         return []
 
 def create_map(earthquakes, region="usa"):
-    """Create earthquake map"""
+    """Create earthquake map with enhanced hover information"""
     if not earthquakes:
         return
     
@@ -121,6 +121,20 @@ def create_map(earthquakes, region="usa"):
         return
     
     df = pd.DataFrame(valid_earthquakes)
+    
+    # Add formatted datetime and enhanced hover information
+    df['datetime'] = df['time'].apply(lambda x: datetime.fromtimestamp(x/1000).strftime("%m/%d/%Y %H:%M:%S UTC"))
+    df['magnitude_display'] = df['magnitude'].apply(lambda x: f"M {x:.1f}")
+    df['depth_display'] = df['depth'].apply(lambda x: f"{x:.1f} km")
+    df['coordinates'] = df.apply(lambda row: f"{row['latitude']:.3f}°, {row['longitude']:.3f}°", axis=1)
+    
+    # Create magnitude categories for color coding
+    df['mag_category'] = df['magnitude'].apply(lambda x: 
+        'Major (5.0+)' if x >= 5.0 else
+        'Light (4.0-4.9)' if x >= 4.0 else
+        'Minor (3.0-3.9)' if x >= 3.0 else
+        'Micro (0-2.9)'
+    )
     
     # Set zoom and center based on region
     zoom_settings = {
@@ -141,11 +155,30 @@ def create_map(earthquakes, region="usa"):
         size="magnitude",
         color="magnitude",
         hover_name="place",
+        hover_data={
+            "magnitude_display": True,
+            "depth_display": True,
+            "datetime": True,
+            "coordinates": True,
+            "mag_category": True,
+            "magnitude": False,  # Hide raw magnitude
+            "depth": False,      # Hide raw depth
+            "time": False,       # Hide raw time
+            "latitude": False,   # Hide raw coordinates
+            "longitude": False
+        },
         color_continuous_scale="Reds",
         zoom=zoom_config["zoom"],
         center=zoom_config["center"],
         height=400,
-        title=f"🗺️ Earthquake Activity - {region.replace('_', ' ').title()}"
+        title=f"🗺️ Earthquake Activity - {region.replace('_', ' ').title()}",
+        labels={
+            "magnitude_display": "Magnitude",
+            "depth_display": "Depth",
+            "datetime": "Event Time",
+            "coordinates": "Location",
+            "mag_category": "Category"
+        }
     )
     
     fig.update_layout(
