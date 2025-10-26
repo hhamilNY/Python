@@ -1,6 +1,6 @@
 """
-USGS Earthquake Monitor - Professional Mobile Web App
-Advanced features with comprehensive analytics and monitoring
+Advanced USGS Earthquake Monitor - Complete Mobile Web App
+All modular features combined into single deployable file
 """
 
 import streamlit as st
@@ -42,18 +42,6 @@ st.markdown("""
     .stButton > button:hover {
         transform: translateY(-2px);
         box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    }
-    .active-button {
-        background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
-        color: white !important;
-        border: 2px solid #20c997 !important;
-        box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4) !important;
-        transform: translateY(-2px) !important;
-    }
-    .inactive-button {
-        background: linear-gradient(135deg, #6c757d 0%, #495057 100%) !important;
-        color: white !important;
-        border: 1px solid #6c757d !important;
     }
     .metric-card {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -394,53 +382,27 @@ def main():
     # Data Source Selection
     st.markdown("<h3 style='text-align: center;'>📡 Data Source Selection</h3>", unsafe_allow_html=True)
     
-    # Initialize session state
-    if 'feed_type' not in st.session_state:
-        st.session_state.feed_type = "all_hour"
-    
-    # Show current selection
-    current_selection = {
-        "all_hour": "🕐 Past Hour",
-        "all_day": "📅 Past Day", 
-        "all_week": "🌍 Past Week",
-        "all_month": "📆 Past Month",
-        "4.5_week": "🌋 Major Quakes (4.5+)",
-        "significant_month": "⚠️ Significant Events"
-    }
-    
-    selected_name = current_selection.get(st.session_state.feed_type, "Unknown")
-    st.info(f"🎯 **Currently Selected:** {selected_name}")
-    
     col1, col2 = st.columns(2)
     
     with col1:
-        # Create buttons with active state styling
-        if st.button("🕐 Past Hour", key="hour", 
-                    type="primary" if st.session_state.feed_type == "all_hour" else "secondary"):
+        if st.button("🕐 Past Hour", key="hour"):
             st.session_state.feed_type = "all_hour"
-            st.rerun()
-        if st.button("📅 Past Day", key="day",
-                    type="primary" if st.session_state.feed_type == "all_day" else "secondary"):
+        if st.button("📅 Past Day", key="day"):
             st.session_state.feed_type = "all_day"
-            st.rerun()
-        if st.button("🌍 Past Week", key="week",
-                    type="primary" if st.session_state.feed_type == "all_week" else "secondary"):
+        if st.button("🌍 Past Week", key="week"):
             st.session_state.feed_type = "all_week"
-            st.rerun()
     
     with col2:
-        if st.button("📆 Past Month", key="month",
-                    type="primary" if st.session_state.feed_type == "all_month" else "secondary"):
+        if st.button("📆 Past Month", key="month"):
             st.session_state.feed_type = "all_month"
-            st.rerun()
-        if st.button("🌋 Major Quakes (4.5+)", key="major",
-                    type="primary" if st.session_state.feed_type == "4.5_week" else "secondary"):
+        if st.button("🌋 Major Quakes (4.5+)", key="major"):
             st.session_state.feed_type = "4.5_week"
-            st.rerun()
-        if st.button("⚠️ Significant Events", key="significant",
-                    type="primary" if st.session_state.feed_type == "significant_month" else "secondary"):
+        if st.button("⚠️ Significant Events", key="significant"):
             st.session_state.feed_type = "significant_month"
-            st.rerun()
+    
+    # Initialize session state
+    if 'feed_type' not in st.session_state:
+        st.session_state.feed_type = "all_hour"
     
     feed_type = st.session_state.feed_type
     
