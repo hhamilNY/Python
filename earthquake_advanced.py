@@ -17,7 +17,7 @@ import logging
 
 # Configure page
 st.set_page_config(
-    page_title="🌍 Advanced Earthquake Monitor", 
+    page_title="🌍 Real-Time Earthquake Monitor", 
     page_icon="🌍",
     layout="centered",
     initial_sidebar_state="collapsed"
@@ -121,7 +121,16 @@ def fetch_earthquake_data(feed_type="all_hour", region="usa"):
             elif region == "global":
                 include_earthquake = True
             elif region == "west_coast":
-                if -130 <= longitude <= -115 and 30 <= latitude <= 50:
+                # Northwest region (Oregon and Washington focus)
+                if -125 <= longitude <= -116 and 42 <= latitude <= 49:
+                    include_earthquake = True
+            elif region == "east_mississippi":
+                # East of Mississippi region
+                if -90 <= longitude <= -65 and 25 <= latitude <= 50:
+                    include_earthquake = True
+            elif region == "texas":
+                # Texas region
+                if -107 <= longitude <= -93 and 25.5 <= latitude <= 36.5:
                     include_earthquake = True
             
             if include_earthquake:
@@ -148,7 +157,7 @@ def create_advanced_map(earthquakes, region="usa"):
         st.warning("⚠️ No earthquake data available for map")
         return
     
-    valid_earthquakes = [eq for eq in earthquakes if eq['magnitude'] > 0]
+    valid_earthquakes = [eq for eq in earthquakes if eq.get('magnitude', 0) > 0]
     if not valid_earthquakes:
         st.warning("⚠️ No valid earthquake data for map")
         return
@@ -181,7 +190,9 @@ def create_advanced_map(earthquakes, region="usa"):
         "usa": {"zoom": 3, "center": {"lat": 39.8, "lon": -98.5}},
         "california": {"zoom": 6, "center": {"lat": 36.7, "lon": -119.7}},
         "alaska": {"zoom": 4, "center": {"lat": 64.0, "lon": -153.0}},
-        "west_coast": {"zoom": 5, "center": {"lat": 40.0, "lon": -122.0}},
+        "west_coast": {"zoom": 6, "center": {"lat": 45.5, "lon": -121.0}},
+        "east_mississippi": {"zoom": 5, "center": {"lat": 37.5, "lon": -77.5}},
+        "texas": {"zoom": 6, "center": {"lat": 31.0, "lon": -100.0}},
         "pacific": {"zoom": 2, "center": {"lat": 0.0, "lon": -140.0}},
         "global": {"zoom": 1, "center": {"lat": 0.0, "lon": 0.0}}
     }
@@ -213,7 +224,7 @@ def create_advanced_map(earthquakes, region="usa"):
         zoom=zoom_config["zoom"],
         center=zoom_config["center"],
         height=500,
-        title=f"🗺️ Advanced Earthquake Monitor - {region.replace('_', ' ').title()}",
+        title=f"🗺️ Real-Time Earthquake Monitor - {region.replace('_', ' ').title()}",
         labels={
             "magnitude_display": "Magnitude",
             "depth_display": "Depth",
@@ -238,14 +249,14 @@ def show_advanced_stats(earthquakes, region="USA"):
         st.warning("⚠️ No earthquake data available for statistics")
         return
     
-    valid_earthquakes = [eq for eq in earthquakes if eq['magnitude'] > 0]
+    valid_earthquakes = [eq for eq in earthquakes if eq.get('magnitude', 0) > 0]
     if not valid_earthquakes:
         st.warning("⚠️ No valid earthquake data for statistics")
         return
     
-    magnitudes = [eq['magnitude'] for eq in valid_earthquakes]
-    depths = [eq['depth'] for eq in valid_earthquakes]
-    times = [eq['time'] for eq in valid_earthquakes]
+    magnitudes = [eq.get('magnitude', 0) for eq in valid_earthquakes]
+    depths = [eq.get('depth', 0) for eq in valid_earthquakes]
+    times = [eq.get('time', 0) for eq in valid_earthquakes]
     
     # Enhanced Statistics Dashboard
     st.markdown("<h3 style='text-align: center; color: #2c3e50;'>📊 Advanced Statistics Dashboard</h3>", unsafe_allow_html=True)
@@ -325,8 +336,196 @@ def show_advanced_stats(earthquakes, region="USA"):
             fig_timeline.update_layout(height=300, margin=dict(l=0, r=0, t=40, b=0))
             st.plotly_chart(fig_timeline, use_container_width=True)
 
+def create_regional_comparison_chart(feed_type, min_magnitude=0.0):
+    """Create a regional comparison histogram showing earthquake counts across all regions"""
+    
+    # Define all regions for comparison
+    regions = {
+        "🇺🇸 United States of America": "usa",
+        "🌴 California": "california", 
+        "❄️ Alaska": "alaska",
+        "🏔️ Northwest": "west_coast",
+        "🏛️ East of Mississippi": "east_mississippi",
+        "🤠 Texas": "texas",
+        "🌋 Pacific Ring": "pacific",
+        "🌍 Global": "global"
+    }
+    
+    regional_data = []
+    
+    # Fetch data for each region
+    for region_name, region_code in regions.items():
+        try:
+            earthquakes = fetch_earthquake_data(feed_type, region_code)
+            # Apply magnitude filter
+            if min_magnitude > 0.0:
+                earthquakes = [eq for eq in earthquakes if eq.get('magnitude', 0) >= min_magnitude]
+            
+            # Calculate statistics
+            total_count = len(earthquakes)
+            if earthquakes:
+                magnitudes = [eq.get('magnitude', 0) for eq in earthquakes if eq.get('magnitude', 0) > 0]
+                avg_magnitude = sum(magnitudes) / len(magnitudes) if magnitudes else 0
+                max_magnitude = max(magnitudes) if magnitudes else 0
+            else:
+                avg_magnitude = 0
+                max_magnitude = 0
+            
+            regional_data.append({
+                'region': region_name,
+                'region_code': region_code,
+                'count': total_count,
+                'avg_magnitude': avg_magnitude,
+                'max_magnitude': max_magnitude
+            })
+        except Exception as e:
+            # If there's an error with a region, add zero data
+            regional_data.append({
+                'region': region_name,
+                'region_code': region_code,
+                'count': 0,
+                'avg_magnitude': 0,
+                'max_magnitude': 0
+            })
+    
+    return regional_data
+
+def show_regional_charts(feed_type, min_magnitude=0.0):
+    """Display regional comparison charts and analytics"""
+    st.markdown("<h3 style='text-align: center;'>📊 Regional Earthquake Comparison</h3>", unsafe_allow_html=True)
+    
+    with st.spinner("📡 Fetching data for all regions..."):
+        regional_data = create_regional_comparison_chart(feed_type, min_magnitude)
+    
+    if not regional_data:
+        st.warning("⚠️ No regional data available")
+        return
+    
+    # Create comparison charts
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Earthquake count histogram
+        regions = [data['region'] for data in regional_data]
+        counts = [data['count'] for data in regional_data]
+        
+        fig_count = px.bar(
+            x=regions,
+            y=counts,
+            title="🌍 Earthquake Count by Region",
+            labels={'x': 'Region', 'y': 'Number of Earthquakes'},
+            color=counts,
+            color_continuous_scale="Reds"
+        )
+        fig_count.update_layout(
+            height=400,
+            xaxis_tickangle=-45,
+            margin=dict(l=0, r=0, t=40, b=0)
+        )
+        st.plotly_chart(fig_count, use_container_width=True)
+    
+    with col2:
+        # Average magnitude comparison
+        avg_mags = [data['avg_magnitude'] for data in regional_data]
+        
+        fig_avg = px.bar(
+            x=regions,
+            y=avg_mags,
+            title="📈 Average Magnitude by Region",
+            labels={'x': 'Region', 'y': 'Average Magnitude'},
+            color=avg_mags,
+            color_continuous_scale="Oranges"
+        )
+        fig_avg.update_layout(
+            height=400,
+            xaxis_tickangle=-45,
+            margin=dict(l=0, r=0, t=40, b=0)
+        )
+        st.plotly_chart(fig_avg, use_container_width=True)
+    
+    # Regional summary table
+    st.markdown("<h4 style='text-align: center;'>📋 Regional Summary Table</h4>", unsafe_allow_html=True)
+    
+    # Create a nice table display
+    for data in sorted(regional_data, key=lambda x: x['count'], reverse=True):
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric(data['region'], f"{data['count']} events")
+        
+        with col2:
+            if data['avg_magnitude'] > 0:
+                st.metric("Avg Magnitude", f"M {data['avg_magnitude']:.1f}")
+            else:
+                st.metric("Avg Magnitude", "No data")
+        
+        with col3:
+            if data['max_magnitude'] > 0:
+                st.metric("Max Magnitude", f"M {data['max_magnitude']:.1f}")
+            else:
+                st.metric("Max Magnitude", "No data")
+        
+        with col4:
+            # Activity level indicator
+            if data['count'] == 0:
+                activity = "🔵 Quiet"
+            elif data['count'] < 10:
+                activity = "🟡 Low"
+            elif data['count'] < 50:
+                activity = "🟠 Moderate"
+            else:
+                activity = "🔴 High"
+            st.metric("Activity Level", activity)
+        
+        st.markdown("---")
+
 def show_admin_panel():
-    """Admin dashboard with session analytics"""
+    """
+    Display administrative dashboard with session analytics and system monitoring.
+    
+    This function creates a comprehensive admin interface for monitoring application
+    usage, session management, and system status. Provides insights into user
+    interactions and application performance metrics.
+    
+    Features:
+    ---------
+    Session Analytics:
+    - Unique session identifier (last 8 characters for privacy)
+    - Page view counter tracking user engagement
+    - Current timestamp for real-time monitoring
+    - Session state persistence across interactions
+    
+    System Status:
+    - Application version information
+    - Data source connectivity status
+    - Cache performance metrics
+    - Error logging and monitoring capabilities
+    
+    Admin Interface Components:
+    - Professional dashboard styling with gradient headers
+    - Organized metric display using columns layout
+    - Real-time updating statistics
+    - System health indicators
+    
+    Returns:
+    --------
+    None
+        Displays admin dashboard directly to Streamlit interface
+    
+    Security Considerations:
+    -----------------------
+    - Session IDs are truncated for privacy protection
+    - No sensitive user data exposed in interface
+    - Admin access controlled by toggle mechanism
+    - Monitoring data kept anonymous
+    
+    Notes:
+    ------
+    - Toggle admin mode via sidebar button to access
+    - Useful for debugging and performance monitoring
+    - Helps track application usage patterns
+    - Essential for production deployment monitoring
+    """
     st.markdown("""
     <div class="admin-panel">
         <h3 style='margin: 0; text-align: center;'>🔧 Admin Dashboard</h3>
@@ -360,12 +559,12 @@ def show_admin_panel():
         st.info("🌍 Regions: 6 available")
 
 def main():
-    """Advanced earthquake monitoring application"""
+    """Real-time earthquake monitoring application"""
     # Enhanced header
     st.markdown("""
     <div style='text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
                 padding: 2rem; border-radius: 20px; color: white; margin-bottom: 2rem;'>
-        <h1 style='margin: 0; font-size: 2.5rem;'>🌍 Advanced Earthquake Monitor</h1>
+        <h1 style='margin: 0; font-size: 2.5rem;'>🌍 Real-Time Earthquake Monitor</h1>
         <p style='margin: 0.5rem 0; font-size: 1.2rem;'>Professional real-time seismic monitoring system</p>
         <p style='margin: 0; opacity: 0.8;'>Powered by USGS • Real-time Data • Global Coverage</p>
     </div>
@@ -422,10 +621,12 @@ def main():
         )
         
         region_options = {
-            "🇺🇸 USA": "usa",
+            "🇺🇸 United States of America": "usa",
             "🌴 California": "california", 
             "❄️ Alaska": "alaska",
-            "🌊 US West Coast": "west_coast",
+            "🏔️ Northwest": "west_coast",
+            "🏛️ East of Mississippi": "east_mississippi",
+            "🤠 Texas": "texas",
             "🌋 Pacific Ring": "pacific",
             "🌍 Global": "global"
         }
@@ -446,7 +647,7 @@ def main():
         show_recent_toggle = st.checkbox("📋 Show Recent List", value=True)
     
     # Fetch and process data
-    with st.spinner("📡 Loading advanced earthquake data..."):
+    with st.spinner("📡 Loading real-time earthquake data..."):
         earthquakes = fetch_earthquake_data(feed_type, region)
     
     # Apply magnitude filter
@@ -454,6 +655,11 @@ def main():
         earthquakes = [eq for eq in earthquakes if eq.get('magnitude', 0) >= min_magnitude]
     
     if earthquakes:
+        # Calculate accurate counts
+        total_events = len(earthquakes)
+        valid_events = len([eq for eq in earthquakes if eq.get('magnitude', 0) > 0])
+        incomplete_events = total_events - valid_events
+        
         # Status display
         current_selection = {
             "all_hour": "🕐 Past Hour",
@@ -466,7 +672,18 @@ def main():
         
         selected_name = current_selection.get(feed_type, "Unknown")
         st.info(f"📊 **{selected_name}** | 🌍 **{selected_region}** | Min Magnitude: **M {min_magnitude}**")
-        st.success(f"✅ Found {len(earthquakes)} earthquakes")
+        
+        # Enhanced status with data quality info
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.success(f"✅ **{total_events}** Total Events")
+        with col2:
+            st.metric("📊 Complete Records", f"{valid_events}")
+        with col3:
+            if incomplete_events > 0:
+                st.warning(f"⚠️ **{incomplete_events}** Incomplete")
+            else:
+                st.info("✨ All Records Complete")
         
         # Conditional displays based on toggles
         if show_stats_toggle:
@@ -478,17 +695,18 @@ def main():
         # Recent earthquakes list
         if show_recent_toggle:
             st.markdown("<h3 style='text-align: center;'>📋 Recent Earthquake Events</h3>", unsafe_allow_html=True)
-            valid_earthquakes = [eq for eq in earthquakes if eq['magnitude'] > 0]
+            valid_earthquakes = [eq for eq in earthquakes if eq.get('magnitude', 0) > 0]
             
-            for i, eq in enumerate(sorted(valid_earthquakes, key=lambda x: x['magnitude'], reverse=True)[:10]):
-                time_dt = datetime.fromtimestamp(eq['time']/1000)
+            for i, eq in enumerate(sorted(valid_earthquakes, key=lambda x: x.get('magnitude', 0), reverse=True)[:10]):
+                time_dt = datetime.fromtimestamp(eq.get('time', 0)/1000)
                 time_str = time_dt.strftime("%m/%d %H:%M")
                 
                 # Enhanced earthquake display with color coding
+                magnitude = eq.get('magnitude', 0)
                 mag_color = (
-                    "🔴" if eq['magnitude'] >= 5.0 else
-                    "🟠" if eq['magnitude'] >= 4.0 else
-                    "🟡" if eq['magnitude'] >= 3.0 else
+                    "🔴" if magnitude >= 5.0 else
+                    "🟠" if magnitude >= 4.0 else
+                    "🟡" if magnitude >= 3.0 else
                     "🔵"
                 )
                 
@@ -501,14 +719,22 @@ def main():
                     tsunami_info = " | ⚠️ TSUNAMI"
                 
                 st.markdown(f"""
-                **{mag_color} M {eq['magnitude']:.1f}** - {eq['place']}  
-                *{time_str} | Depth: {eq['depth']:.1f}km{alert_info}{tsunami_info}*
+                **{mag_color} M {magnitude:.1f}** - {eq.get('place', 'Unknown')}  
+                *{time_str} | Depth: {eq.get('depth', 0):.1f}km{alert_info}{tsunami_info}*
                 """)
                 
                 if i < 9:  # Add separator except for last item
                     st.markdown("---")
     else:
         st.warning("⚠️ No earthquake data available for the selected criteria")
+    
+    # Data Quality Disclaimer
+    st.markdown("---")
+    st.info("""
+    📋 **Data Quality Notice**: Some earthquake records may be incomplete as the USGS continues to research and verify event details. 
+    Preliminary data is subject to revision as more information becomes available. Missing magnitude, depth, or location data 
+    indicates ongoing analysis by seismologists.
+    """)
     
     # Enhanced footer
     st.markdown("---")
