@@ -445,6 +445,53 @@ def create_advanced_map(earthquakes, region="usa"):
     )
     
     st.plotly_chart(fig, use_container_width=True)
+def show_global_peak_24h():
+    """
+    Fetch and display the highest magnitude earthquake globally in the last 24 hours.
+    """
+    url = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson"
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        features = data.get("features", [])
+        # Filter out events with missing or zero magnitude
+        valid_events = [
+            f for f in features
+            if f["properties"].get("mag") is not None and f["properties"]["mag"] > 0
+        ]
+        if not valid_events:
+            st.info("🌍 No valid global earthquake data in the last 24 hours.")
+            return
+        # Find the event with the highest magnitude
+        peak = max(valid_events, key=lambda f: f["properties"]["mag"])
+        mag = peak["properties"]["mag"]
+        place = peak["properties"].get("place", "Unknown location")
+        time_ms = peak["properties"].get("time", 0)
+        time_str = datetime.utcfromtimestamp(time_ms / 1000).strftime("%Y-%m-%d %H:%M UTC")
+        url_detail = peak["properties"].get("url", "")
+        # Color/severity
+        if mag >= 7.0:
+            color = "🚨 <span style='color:#c0392b'><b>MAJOR</b></span>"
+        elif mag >= 6.0:
+            color = "⚠️ <span style='color:#e67e22'><b>STRONG</b></span>"
+        elif mag >= 5.0:
+            color = "🔶 <span style='color:#f1c40f'><b>MODERATE</b></span>"
+        else:
+            color = "🟢 <span style='color:#27ae60'><b>LIGHT</b></span>"
+        st.markdown(
+            f"""
+            <div style='background:linear-gradient(90deg,#f8ffae 0%,#43c6ac 100%);padding:1.2rem 1rem 1.2rem 1rem;border-radius:15px;margin-bottom:1.5rem;text-align:center;'>
+                <span style='font-size:1.3rem;'>{color} | <b>Global 24H Peak:</b> M {mag:.1f}</span><br>
+                <span style='font-size:1.1rem;'>{place}</span><br>
+                <span style='font-size:1rem;color:#555;'>Occurred: {time_str}</span><br>
+                <a href="{url_detail}" target="_blank" style="font-size:0.95rem;">USGS Event Details</a>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    except Exception as e:
+        st.warning(f"🌍 Could not fetch global 24H peak earthquake: {e}")
 
 def show_advanced_stats(earthquakes, region="USA"):
     """
@@ -989,6 +1036,8 @@ def main():
     </div>
     """, unsafe_allow_html=True)
     
+    show_global_peak_24h()
+
     # Admin toggle
     if st.sidebar.button("🔧 Toggle Admin Mode"):
         st.session_state.admin_mode = not st.session_state.admin_mode
