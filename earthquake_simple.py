@@ -76,12 +76,13 @@ DEPENDENCIES:
 - numpy: Numerical computing support
 """
 
+from calendar import c
 import streamlit as st
 import requests
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import numpy as np
 import json
 import os
@@ -307,7 +308,7 @@ def fetch_earthquake_data(feed_type="all_hour", region="usa"):
         st.error(f"Error fetching data: {e}")
         return []
 
-def create_advanced_map(earthquakes, region="usa"):
+def create_advanced_map(earthquakes, region="usa", chart_key_prefix=""):
     """
     Create an interactive earthquake map with comprehensive visualization features.
     
@@ -360,7 +361,7 @@ def create_advanced_map(earthquakes, region="usa"):
         st.warning("⚠️ No earthquake data available for map")
         return
     
-    valid_earthquakes = [eq for eq in earthquakes if eq.get('magnitude', 0) > 0]
+    valid_earthquakes = [eq for eq in earthquakes if eq.get('magnitude') is not None and eq.get('magnitude') > 0]
     if not valid_earthquakes:
         st.warning("⚠️ No valid earthquake data for map")
         return
@@ -387,7 +388,6 @@ def create_advanced_map(earthquakes, region="usa"):
         '🟢 Green Alert' if x == 'green' else
         '⚪ No Alert'
     )
-    
     # Regional zoom settings
     zoom_settings = {
         "usa": {"zoom": 3, "center": {"lat": 39.8, "lon": -98.5}},
@@ -443,8 +443,10 @@ def create_advanced_map(earthquakes, region="usa"):
         margin=dict(l=0, r=0, t=40, b=0),
         font=dict(size=12)
     )
-    
-    st.plotly_chart(fig, use_container_width=True)
+
+    st.plotly_chart(fig, use_container_width=True, key=f"{chart_key_prefix}map_chart_main")
+
+
 def show_global_peak_24h():
     """
     Fetch and display the highest magnitude earthquake globally in the last 24 hours.
@@ -468,7 +470,9 @@ def show_global_peak_24h():
         mag = peak["properties"]["mag"]
         place = peak["properties"].get("place", "Unknown location")
         time_ms = peak["properties"].get("time", 0)
-        time_str = datetime.utcfromtimestamp(time_ms / 1000).strftime("%Y-%m-%d %H:%M UTC")
+        #deprecated method
+        #time_str = datetime.utcfromtimestamp(time_ms / 1000).strftime("%Y-%m-%d %H:%M UTC")
+        time_str = datetime.fromtimestamp(time_ms / 1000, timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         url_detail = peak["properties"].get("url", "")
         # Color/severity
         if mag >= 7.0:
@@ -493,7 +497,7 @@ def show_global_peak_24h():
     except Exception as e:
         st.warning(f"🌍 Could not fetch global 24H peak earthquake: {e}")
 
-def show_advanced_stats(earthquakes, region="USA"):
+def show_advanced_stats(earthquakes, region="USA", chart_key_prefix="" ):
     """
     Display comprehensive earthquake statistics with interactive visualizations.
     
@@ -549,7 +553,7 @@ def show_advanced_stats(earthquakes, region="USA"):
         st.warning("⚠️ No earthquake data available for statistics")
         return
     
-    valid_earthquakes = [eq for eq in earthquakes if eq.get('magnitude', 0) > 0]
+    valid_earthquakes = [eq for eq in earthquakes if eq.get('magnitude') is not None and eq.get('magnitude') > 0]
     if not valid_earthquakes:
         st.warning("⚠️ No valid earthquake data for statistics")
         return
@@ -599,7 +603,7 @@ def show_advanced_stats(earthquakes, region="USA"):
         color_discrete_sequence=["#e74c3c"]
     )
     fig_hist.update_layout(height=300, margin=dict(l=0, r=0, t=40, b=0))
-    st.plotly_chart(fig_hist, use_container_width=True)
+    st.plotly_chart(fig_hist, use_container_width=True,  key=f"{chart_key_prefix}histogram_chart_stats")
     
     # Depth vs Magnitude Scatter
     col1, col2 = st.columns(2)
@@ -614,7 +618,7 @@ def show_advanced_stats(earthquakes, region="USA"):
             title="Earthquake Depth vs Magnitude"
         )
         fig_scatter.update_layout(height=300, margin=dict(l=0, r=0, t=40, b=0))
-        st.plotly_chart(fig_scatter, use_container_width=True)
+        st.plotly_chart(fig_scatter, use_container_width=True, key=f"{chart_key_prefix}scatter_chart_stats")
     
     with col2:
         st.markdown("<h4 style='text-align: center;'>⏰ Timeline</h4>", unsafe_allow_html=True)
@@ -642,9 +646,9 @@ def show_advanced_stats(earthquakes, region="USA"):
                 color_discrete_sequence=["#3498db"]
             )
             fig_timeline.update_layout(height=300, margin=dict(l=0, r=0, t=40, b=0))
-            st.plotly_chart(fig_timeline, use_container_width=True)
+            st.plotly_chart(fig_timeline, use_container_width=True, key=f"{chart_key_prefix}timeline_chart_stats")
 
-def create_regional_comparison_chart(feed_type, min_magnitude=0.0):
+def create_regional_comparison_chart(feed_type, min_magnitude=0.0, chart_key_prefix=""):
     """
     Generate comprehensive regional earthquake comparison data for all monitored regions.
     
@@ -730,7 +734,7 @@ def create_regional_comparison_chart(feed_type, min_magnitude=0.0):
             earthquakes = fetch_earthquake_data(feed_type, region_code)
             # Apply magnitude filter
             if min_magnitude > 0.0:
-                earthquakes = [eq for eq in earthquakes if eq.get('magnitude', 0) >= min_magnitude]
+                earthquakes = [eq for eq in earthquakes if eq.get('magnitude') is not None and eq.get('magnitude') > min_magnitude]
             
             # Calculate statistics
             total_count = len(earthquakes)
@@ -768,12 +772,12 @@ def create_regional_comparison_chart(feed_type, min_magnitude=0.0):
     
     return regional_data
 
-def show_regional_charts(feed_type, min_magnitude=0.0):
+def show_regional_charts(feed_type, min_magnitude=0.0, chart_key_prefix=""):
     """Display regional comparison charts and analytics"""
     st.markdown("<h3 style='text-align: center;'>📊 Regional Earthquake Comparison</h3>", unsafe_allow_html=True)
     
     with st.spinner("📡 Fetching data for all regions..."):
-        regional_data = create_regional_comparison_chart(feed_type, min_magnitude)
+        regional_data = create_regional_comparison_chart(feed_type, min_magnitude, chart_key_prefix="regional_")
     
     if not regional_data:
         st.warning("⚠️ No regional data available")
@@ -800,8 +804,8 @@ def show_regional_charts(feed_type, min_magnitude=0.0):
             xaxis_tickangle=-45,
             margin=dict(l=0, r=0, t=40, b=0)
         )
-        st.plotly_chart(fig_count, use_container_width=True)
-    
+        st.plotly_chart(fig_count, use_container_width=True,            key=f"{chart_key_prefix}regional_total_count_chart")
+
     with col2:
         # Complete records histogram
         complete_counts = [data['complete_count'] for data in regional_data]
@@ -819,7 +823,7 @@ def show_regional_charts(feed_type, min_magnitude=0.0):
             xaxis_tickangle=-45,
             margin=dict(l=0, r=0, t=40, b=0)
         )
-        st.plotly_chart(fig_complete, use_container_width=True)
+        st.plotly_chart(fig_complete, use_container_width=True, key=f"{chart_key_prefix}regional_complete_count_chart")
     
     # Average magnitude comparison
     st.markdown("#### 📈 Average Magnitude by Region")
@@ -838,7 +842,7 @@ def show_regional_charts(feed_type, min_magnitude=0.0):
         xaxis_tickangle=-45,
         margin=dict(l=0, r=0, t=40, b=0)
     )
-    st.plotly_chart(fig_avg, use_container_width=True)
+    st.plotly_chart(fig_avg, use_container_width=True, key=f"{chart_key_prefix}regional_avg_magnitude")
     
     # Regional summary table
     st.markdown("<h4 style='text-align: center;'>📋 Regional Summary Table</h4>", unsafe_allow_html=True)
@@ -879,7 +883,7 @@ def show_regional_charts(feed_type, min_magnitude=0.0):
         
         st.markdown("---")
 
-def show_charts_section(earthquakes, feed_type, min_magnitude=0.0):
+def show_charts_section(earthquakes, feed_type, min_magnitude=0.0 ,chart_key_prefix=""):
     """Display comprehensive charts and analytics"""
     st.markdown("<h3 style='text-align: center;'>📈 Charts & Analytics</h3>", unsafe_allow_html=True)
     
@@ -888,19 +892,19 @@ def show_charts_section(earthquakes, feed_type, min_magnitude=0.0):
     
     with tab1:
         if earthquakes:
-            show_advanced_stats(earthquakes, "Current Selection")
+            show_advanced_stats(earthquakes, "Current Selection", chart_key_prefix="tab1_")
         else:
             st.warning("⚠️ No earthquake data available for current region")
     
     with tab2:
-        show_regional_charts(feed_type, min_magnitude)
+        show_regional_charts(feed_type, min_magnitude, chart_key_prefix="tab2_")
     
     with tab3:
         if earthquakes:
             st.markdown("#### 🔬 Advanced Analysis")
             
             # Additional analytics could go here
-            valid_earthquakes = [eq for eq in earthquakes if eq.get('magnitude', 0) > 0]
+            valid_earthquakes = [eq for eq in earthquakes if eq.get('magnitude') is not None and eq.get('magnitude') > 0]
             if valid_earthquakes:
                 magnitudes = [eq.get('magnitude', 0) for eq in valid_earthquakes]
                 
@@ -922,7 +926,7 @@ def show_charts_section(earthquakes, feed_type, min_magnitude=0.0):
                         names=list(mag_categories.keys()),
                         title="🥧 Magnitude Distribution"
                     )
-                    st.plotly_chart(fig_pie, use_container_width=True)
+                    st.plotly_chart(fig_pie, use_container_width=True, key=f"{chart_key_prefix}magnitude_pie_chart_advanced")
         else:
             st.warning("⚠️ No data available for advanced analytics")
 
@@ -1240,12 +1244,12 @@ def main():
     
     # Apply magnitude filter
     if min_magnitude > 0.0:
-        earthquakes = [eq for eq in earthquakes if eq.get('magnitude', 0) >= min_magnitude]
+        earthquakes = [eq for eq in earthquakes if eq.get('magnitude') is not None and eq.get('magnitude') > min_magnitude]
     
     if earthquakes:
         # Calculate accurate counts
         total_events = len(earthquakes)
-        valid_events = len([eq for eq in earthquakes if eq.get('magnitude', 0) > 0])
+        valid_events = len([eq for eq in earthquakes if eq.get('magnitude') is not None and eq.get('magnitude') > 0])
         incomplete_events = total_events - valid_events
         
         # Status display
@@ -1275,18 +1279,19 @@ def main():
         
         # Conditional displays based on toggles
         if show_stats_toggle:
-            show_advanced_stats(earthquakes, selected_region)
+            show_advanced_stats(earthquakes, selected_region, chart_key_prefix="main_")
         
         if show_charts_toggle:
             show_charts_section(earthquakes, feed_type, min_magnitude)
         
         if show_map_toggle:
-            create_advanced_map(earthquakes, region)
+            create_advanced_map(earthquakes, region,chart_key_prefix="map_main_")
         
         # Recent earthquakes list
         if show_recent_toggle:
+            st.markdown("<div style='height: 2.5rem;'></div>", unsafe_allow_html=True)
             st.markdown("<h3 style='text-align: center;'>📋 Recent Earthquake Events</h3>", unsafe_allow_html=True)
-            valid_earthquakes = [eq for eq in earthquakes if eq.get('magnitude', 0) > 0]
+            valid_earthquakes = [eq for eq in earthquakes if eq.get('magnitude') is not None and eq.get('magnitude') > 0]
             
             for i, eq in enumerate(sorted(valid_earthquakes, key=lambda x: x.get('magnitude', 0), reverse=True)[:10]):
                 time_dt = datetime.fromtimestamp(eq.get('time', 0)/1000)
@@ -1340,4 +1345,4 @@ def main():
     """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
-    main()
+    main()    
