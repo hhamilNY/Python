@@ -160,6 +160,7 @@ st.markdown("""
     h1, h2, h3, h4 {
         text-align: center;
         color: #2c3e50;
+        margin-bottom: 2rem; /* Increased spacing after headings to prevent overlap */
     }
     .stSelectbox > div > div {
         border-radius: 20px;
