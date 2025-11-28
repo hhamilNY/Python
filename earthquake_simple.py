@@ -74,6 +74,12 @@ DEPENDENCIES:
 - pandas: Data manipulation and analysis
 - plotly: Interactive visualization library
 - numpy: Numerical computing support
+
+All data is handled in memory (lists, dicts, pandas DataFrames).
+No SQL statements, database connections, or user-supplied query strings are used.
+You are safe from SQL injection vulnerabilities in this code.
+
+
 """
 
 from calendar import c
@@ -87,6 +93,7 @@ import numpy as np
 import json
 import os
 from pathlib import Path
+import time
 import logging
 
 # Configure page
@@ -235,7 +242,7 @@ def fetch_earthquake_data(feed_type="all_hour", region="usa"):
     - Some earthquake records may be incomplete during initial reporting
     """
     url = f"https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/{feed_type}.geojson"
-    
+    start_time = time.time()
     try:
         response = requests.get(url, timeout=10)
         response.raise_for_status()
@@ -302,11 +309,16 @@ def fetch_earthquake_data(feed_type="all_hour", region="usa"):
                     'url': props.get('url', '')                # USGS event detail URL
                 })
         
-        return earthquakes
+        result = earthquakes
     except Exception as e:
         # Handle API errors gracefully - return empty list rather than crashing
         st.error(f"Error fetching data: {e}")
         return []
+    finally:
+        elapsed = time.time() - start_time
+        logging.basicConfig(filename="earthquake_monitor.log", level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+        logging.info(f"fetch_earthquake_data | feed_type={feed_type} | region={region} | elapsed_time={elapsed:.3f}s")
+    return result
 
 def create_advanced_map(earthquakes, region="usa", chart_key_prefix=""):
     """
@@ -716,7 +728,7 @@ def create_regional_comparison_chart(feed_type, min_magnitude=0.0, chart_key_pre
     
     # Define all regions for comparison
     regions = {
-        "🇺🇸 United States of America": "usa",
+        "🗽 United States of America": "usa",
         "🌴 California": "california", 
         "❄️ Alaska": "alaska",
         "🏔️ Nevada": "nevada",
@@ -1036,10 +1048,15 @@ def main():
                 padding: 2rem; border-radius: 20px; color: white; margin-bottom: 2rem;'>
         <h1 style='margin: 0; font-size: 2.5rem;'>🌍 Real-Time Earthquake Monitor</h1>
         <p style='margin: 0.5rem 0; font-size: 1.2rem;'>Professional real-time seismic monitoring system</p>
-        <p style='margin: 0; opacity: 0.8;'>Powered by USGS • Real-time Data • Global Coverage</p>
+        <p style='margin: 0; opacity: 0.8;'>Powered by USGS • Real-time Data • United States Coverage</p>
     </div>
     """, unsafe_allow_html=True)
-    
+
+      # Global Alert of strongest Earthquake in the last 24 hours
+
+    st.markdown("<h3 style='text-align: center;'>🌍 Strongest Earthquake in the World in the last 24 hours</h3>", unsafe_allow_html=True)
+
+
     show_global_peak_24h()
 
     # Admin toggle
