@@ -159,8 +159,8 @@ st.markdown("""
     }
     h1, h2, h3, h4 {
         text-align: center;
-        color: #2c3e50;
-        margin-bottom: 2rem; /* Increased spacing after headings to prevent overlap */
+        color: #2c3e50;  /* 
+       
     }
     .stSelectbox > div > div {
         border-radius: 20px;
@@ -453,7 +453,7 @@ def create_advanced_map(earthquakes, region="usa", chart_key_prefix=""):
     
     fig.update_layout(
         map_style="open-street-map",
-        margin=dict(l=0, r=0, t=40, b=0),
+        margin=dict(l=0, r=0, t=80, b=0),
         font=dict(size=12)
     )
 
@@ -576,7 +576,7 @@ def show_advanced_stats(earthquakes, region="USA", chart_key_prefix="" ):
     times = [eq.get('time', 0) for eq in valid_earthquakes]
     
     # Enhanced Statistics Dashboard
-    st.markdown("<h3 style='text-align: center; color: #2c3e50;'>📊 Advanced Statistics Dashboard</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; '>📊 Advanced Statistics Dashboard</h3>", unsafe_allow_html=True)
     
     # Data quality info
     total_in_dataset = len(earthquakes)
@@ -615,14 +615,14 @@ def show_advanced_stats(earthquakes, region="USA", chart_key_prefix="" ):
         labels={"x": "Magnitude", "y": "Count"},
         color_discrete_sequence=["#e74c3c"]
     )
-    fig_hist.update_layout(height=300, margin=dict(l=0, r=0, t=40, b=0))
+    fig_hist.update_layout(height=400, margin=dict(l=0, r=0, t=80, b=0))
     st.plotly_chart(fig_hist, use_container_width=True,  key=f"{chart_key_prefix}histogram_chart_stats")
     
     # Depth vs Magnitude Scatter
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("<h4 style='text-align: center;'>🎯 Depth vs Magnitude</h4>", unsafe_allow_html=True)
+        st.markdown("<h4>🎯 Depth vs Magnitude</h4>", unsafe_allow_html=True)
         fig_scatter = px.scatter(
             x=depths, y=magnitudes,
             labels={"x": "Depth (km)", "y": "Magnitude"},
@@ -630,11 +630,11 @@ def show_advanced_stats(earthquakes, region="USA", chart_key_prefix="" ):
             color_continuous_scale="Reds",
             title="Earthquake Depth vs Magnitude"
         )
-        fig_scatter.update_layout(height=300, margin=dict(l=0, r=0, t=40, b=0))
+        fig_scatter.update_layout(height=400, margin=dict(l=0, r=0, t=80, b=0))
         st.plotly_chart(fig_scatter, use_container_width=True, key=f"{chart_key_prefix}scatter_chart_stats")
     
     with col2:
-        st.markdown("<h4 style='text-align: center;'>⏰ Timeline</h4>", unsafe_allow_html=True)
+        st.markdown("<h4>⏰ Timeline</h4>", unsafe_allow_html=True)
         
         # Convert timestamps to datetime for timeline
         timeline_data = []
@@ -658,7 +658,7 @@ def show_advanced_stats(earthquakes, region="USA", chart_key_prefix="" ):
                 labels={"hour": "Hour (UTC)", "count": "Count"},
                 color_discrete_sequence=["#3498db"]
             )
-            fig_timeline.update_layout(height=300, margin=dict(l=0, r=0, t=40, b=0))
+            fig_timeline.update_layout(height=400, margin=dict(l=0, r=0, t=80, b=0))
             st.plotly_chart(fig_timeline, use_container_width=True, key=f"{chart_key_prefix}timeline_chart_stats")
 
 def create_regional_comparison_chart(feed_type, min_magnitude=0.0, chart_key_prefix=""):
@@ -815,7 +815,7 @@ def show_regional_charts(feed_type, min_magnitude=0.0, chart_key_prefix=""):
         fig_count.update_layout(
             height=400,
             xaxis_tickangle=-45,
-            margin=dict(l=0, r=0, t=40, b=0)
+            margin=dict(l=0, r=0, t=80, b=0)
         )
         st.plotly_chart(fig_count, use_container_width=True,            key=f"{chart_key_prefix}regional_total_count_chart")
 
@@ -834,7 +834,7 @@ def show_regional_charts(feed_type, min_magnitude=0.0, chart_key_prefix=""):
         fig_complete.update_layout(
             height=400,
             xaxis_tickangle=-45,
-            margin=dict(l=0, r=0, t=40, b=0)
+            margin=dict(l=0, r=0, t=80, b=0)
         )
         st.plotly_chart(fig_complete, use_container_width=True, key=f"{chart_key_prefix}regional_complete_count_chart")
     
@@ -853,7 +853,7 @@ def show_regional_charts(feed_type, min_magnitude=0.0, chart_key_prefix=""):
     fig_avg.update_layout(
         height=400,
         xaxis_tickangle=-45,
-        margin=dict(l=0, r=0, t=40, b=0)
+        margin=dict(l=0, r=0, t=80, b=0)
     )
     st.plotly_chart(fig_avg, use_container_width=True, key=f"{chart_key_prefix}regional_avg_magnitude")
     
